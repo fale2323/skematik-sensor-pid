@@ -1,0 +1,1490 @@
+<title>Skematik Sensor RPM & PID</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: bench sheet — papan PCB besar di kiri, lembar kerja per tahap di kanan; bertumpuk di layar sempit */
+:root{
+  --bg:#eef0f2; --paper:#ffffff; --ink:#1c2228; --muted:#5d6873; --line:#d3d8de; --soft:#f5f6f8;
+  --accent:#b8621b; --focus:#1f6feb;
+  --s0:#6b7680; --s1:#1f6fd1; --s2:#0f8a78; --s3:#c2185b; --s4:#5b45d6; --s5:#d9731a; --s6:#c0392b; --s7:#0e7c86; --c-pv:#1f6fd1; --c-u:#c8620f;
+  --f-disp:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow","Segoe UI",Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14181c; --paper:#1c2227; --ink:#e6eaee; --muted:#9aa5b0; --line:#313a42; --soft:#232a30;
+  --accent:#e08a42; --focus:#6aa7ff;
+  --s0:#9aa5b0; --s1:#5b9cf0; --s2:#3cbfa9; --s3:#ec5c95; --s4:#9585f5; --s5:#f09a4c; --s6:#ee6f60; --s7:#35b3bd; --c-pv:#4a8fe6; --c-u:#cf7a2e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14181c; --paper:#1c2227; --ink:#e6eaee; --muted:#9aa5b0; --line:#313a42; --soft:#232a30;
+  --accent:#e08a42; --focus:#6aa7ff;
+  --s0:#9aa5b0; --s1:#5b9cf0; --s2:#3cbfa9; --s3:#ec5c95; --s4:#9585f5; --s5:#f09a4c; --s6:#ee6f60; --s7:#35b3bd; --c-pv:#4a8fe6; --c-u:#cf7a2e; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;margin:0}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:20px 48px}
+h1,h2,h3{font-family:var(--f-disp);text-wrap:balance;margin:0;letter-spacing:.01em}
+h1{font-size:clamp(26px,3.4vw,36px);font-weight:700;line-height:1.1}
+h2{font-size:22px;font-weight:700}
+h3{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:13.5px;margin-top:6px}
+.meta b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+mono,.mono{font-family:var(--f-mono);font-size:.9em}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;margin-top:14px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:600 14px var(--f-disp);letter-spacing:.02em;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.tab i{width:10px;height:10px;border-radius:2px;display:inline-block;background:var(--c)}
+.tab[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.tab:focus-visible,.seg button:focus-visible,.chk input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:var(--paper);color:var(--ink);font:600 13.5px var(--f-body);padding:6px 11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--accent)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;margin-top:16px;align-items:start}
+@media (max-width:1000px){.main{grid-template-columns:minmax(0,1fr)}}
+.boardbox{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
+.boardscroll{overflow:auto;max-height:86vh}
+#svg{display:block;width:100%;height:auto;min-width:520px}
+.boardbox.zoom #svg{width:180%;min-width:900px}
+.readout{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--muted);padding:6px 4px 0}
+.readout b{font-family:var(--f-mono);color:var(--ink)}
+.orient{font-size:13px;color:var(--muted);padding:2px 4px 0}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.panel .head{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--c);padding-left:10px}
+.panel p{margin:0}
+.muted{color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td.mono{white-space:nowrap}
+.tscroll{overflow-x:auto}
+ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.chip{display:inline-block;font:600 11.5px var(--f-body);padding:1px 7px;border-radius:999px;border:1px solid currentColor}
+.tpcard{border:1px solid var(--line);border-radius:6px;padding:9px 10px;display:grid;gap:3px;background:var(--soft)}
+.tpcard .t{display:flex;align-items:center;gap:8px;font-weight:600}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex:0 0 auto;border:2px solid rgba(0,0,0,.25)}
+.warn{border-left:3px solid var(--accent);background:var(--soft);padding:8px 10px;border-radius:0 6px 6px 0;font-size:14px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px 16px;font-size:13.5px}
+.legend div{display:flex;align-items:center;gap:8px}
+.legend svg{flex:0 0 auto}
+section.sheet{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:18px;margin-top:18px;display:flex;flex-direction:column;gap:12px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.cols>div{min-width:0;display:flex;flex-direction:column;gap:8px}
+.scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.scope{background:#0b0f0d;border-radius:8px;padding:8px;border:1px solid #26302b;min-width:0}
+.scope svg{width:100%;height:auto;display:block}
+.scope .cap{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;color:#cfe7d6;font:600 12.5px var(--f-mono);padding:2px 2px 6px}
+.scope .meas{display:flex;gap:10px;flex-wrap:wrap;color:#9fbfae;font:12px var(--f-mono);padding:6px 2px 0}
+.scope .meas b{color:#e9f5ec;font-weight:600}
+.pages{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;border-bottom:2px solid var(--line)}
+.pages button{border:0;background:none;color:var(--muted);font:700 15.5px var(--f-disp);letter-spacing:.02em;padding:9px 12px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.pages button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.pages button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.lead{margin:0;max-width:78ch}
+.diag{overflow-x:auto}.diag svg{display:block;min-width:680px;width:100%;height:auto}
+.blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.blk{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px;background:var(--soft);min-width:0}
+.blk h3{color:var(--ink);text-transform:none;letter-spacing:0;font-size:16px;display:flex;gap:8px;align-items:center}
+.blk h3 i{width:10px;height:10px;border-radius:2px;background:var(--c);display:inline-block}
+.blk p{margin:0;font-size:14px}
+.blk .f{font-family:var(--f-mono);font-size:12.5px;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:6px 8px;overflow-wrap:anywhere}
+.blk ul{margin:0;padding-left:18px;font-size:13.5px}
+.simctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 18px;align-items:center}
+.simctl label:not(.chk){display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13.5px}
+.simctl label:not(.chk) input{grid-column:1/3;accent-color:var(--accent)}
+.simctl label span{color:var(--muted)}
+.kpis{display:flex;flex-wrap:wrap;gap:8px}
+.kpi{border:1px solid var(--line);border-radius:6px;padding:6px 10px;background:var(--soft);font-size:13px;color:var(--muted)}
+.kpi b{display:block;font:600 17px var(--f-mono);color:var(--ink)}
+.charts{display:grid;gap:4px;position:relative}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto}
+.chart .ttl{font-size:13px;font-weight:600;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.chart .ttl span.k{display:inline-flex;gap:5px;align-items:center;font-weight:500;color:var(--muted)}
+.chart .ttl span.k i{width:14px;height:0;border-top:2px solid var(--c)}
+.chart .ttl span.k i.dash{border-top:2px dashed var(--c)}
+.tip{position:absolute;pointer-events:none;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:12px var(--f-mono);box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap;z-index:3}
+/* svg classes */
+.dim{opacity:.13}
+.half{opacity:.42}
+.ghost{opacity:.16}
+svg text{font-family:var(--f-mono)}
+@media (prefers-reduced-motion:no-preference){#svg g{transition:opacity .2s}}
+</style>
+<style>
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.keys{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px;color:var(--muted)}
+.keys span{display:inline-flex;align-items:center;gap:7px}
+.keys i{width:18px;height:4px;border-radius:2px;background:var(--c)}
+.schw svg{display:block;width:100%;height:auto;min-width:var(--mw);max-width:var(--xw)}
+.schw{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.f-line{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px}
+.schw .w{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.schw .sym{fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round}
+.schw .gnd line{stroke:var(--ink);stroke-width:1.8}
+.schw .fs{fill:var(--ink)}
+.schw .opb{fill:var(--soft);stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round}
+.schw .ic{fill:var(--soft);stroke:var(--ink);stroke-width:2}
+.schw .hdrb{fill:var(--soft);stroke:var(--muted);stroke-width:1.5}
+.schw .dsh{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:5 4}
+.schw .tpr{fill:none;stroke-width:2.4}
+.schw .lb{fill:var(--ink);font:500 12px var(--f-mono)}
+.schw .pn{fill:var(--muted);font:500 11px var(--f-mono)}
+.schw .nt{font:700 12.5px var(--f-mono)}
+.schw .tt{fill:var(--ink);font:700 17px var(--f-disp)}
+.schw .sb{fill:var(--muted);font:12px var(--f-body)}
+.pages{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
+.pages button{flex:0 0 auto}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Skematik Sensor RPM &amp; PID</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <nav class="pages" role="tablist" aria-label="Bagian">
+    <button data-pg="layout" role="tab">Layout Sensor</button>
+    <button data-pg="final" role="tab">Close Loop Final</button>
+    <button data-pg="skem" role="tab">Skematik Sensor</button>
+    <button data-pg="samb" role="tab">Sambungan ke Open Loop</button>
+    <button data-pg="pid" role="tab">Skematik PID</button>
+    <button data-pg="m3d" role="tab">Model 3D</button>
+  </nav>
+
+<div id="pg-layout">
+  <div class="bar">
+    <div class="tabs" id="tabs" role="toolbar" aria-label="Tahap rangkaian"></div>
+    <div class="ctrl">
+      <div class="seg" role="group" aria-label="Bagian papan">
+        <button class="lv" data-lv="close">Close Loop (atas)</button>
+        <button class="lv" data-lv="gabung">Digabung</button>
+        <button class="lv" data-lv="open">Open Loop (bawah)</button>
+      </div>
+      <div class="seg" role="group" aria-label="Sisi papan">
+        <button id="vComp" aria-pressed="true">Tampak Komponen</button>
+        <button id="vSold" aria-pressed="false">Tampak Solder</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="lBr" checked><span>Jalur solder</span></label>
+      <label class="chk"><input type="checkbox" id="lJp" checked><span>Jumper</span></label>
+      <label class="chk"><input type="checkbox" id="lLb" checked><span>Label</span></label>
+      <label class="chk"><input type="checkbox" id="lZm"><span>Perbesar</span></label>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="boardbox" id="bbox">
+      <div class="boardscroll"><svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Layout PCB bolong"></svg></div>
+      <div class="readout"><span>Arahkan kursor/ketuk lubang: <b id="ro">–</b></span><span id="vname"></span></div>
+      <div class="orient" id="orient"></div>
+    </div>
+    <aside class="panel" id="panel"></aside>
+  </div>
+
+  <section class="sheet">
+    <h2>Cara membaca visual</h2>
+    <div class="legend" id="legend"></div>
+  </section>
+  <section class="sheet">
+    <h2 id="ntTitle">Uji bunyi multimeter per net</h2>
+    <p class="lead muted" id="ntLead"></p>
+    <div class="tscroll"><table id="nettable"></table></div>
+  </section>
+</div>
+
+<div id="pg-final" hidden>
+  <section class="sheet">
+    <h2>Close loop final: semua rangkaian jadi satu</h2>
+    <p class="lead">Versi selesai: open loop (A, setengah bawah), sensor optocoupler (B) dan PID (C) di setengah atas, tersambung membentuk loop tertutup. PID membandingkan SP dengan PV, lalu u menggeser REF komparator sehingga duty PWM menyesuaikan sendiri sampai kecepatan motor sama dengan setpoint.</p>
+    <div class="diag" id="dgLoop"></div>
+  </section>
+  <section class="sheet">
+    <h2>Skematik lengkap</h2>
+    <p class="lead muted">Label bertanda panah (PV, u) adalah sambungan antar papan lewat kabel. Garis putus-putus abu-abu dari motor = sambungan mekanis (disk encoder di poros motor).</p>
+    <div class="diag schw" id="schF" style="--mw:1180px;--xw:1520px"></div>
+    <div class="f-line"><span class="mono"><b>IC2 LM324:</b> A = pin 1–3 · B = 5–7 · C = 8–10 (tidak dipakai: 8–9 disatukan, 10 ke GND) · D = 12–14 · pin 4 = +9 V, pin 11 = GND</span><span class="muted">C4 100 nF di pin 8 NE555, C8 100 nF di pin 4 IC2 · IC5, IC6 memakai ±9 V</span></div>
+  </section>
+  <section class="sheet">
+    <h2>Titik ukur close loop</h2>
+    <div class="tscroll"><table id="tpF"></table></div>
+  </section>
+  <section class="sheet">
+    <h2>Bahan total (satu papan, dua setengah)</h2>
+    <div class="tscroll"><table id="bomF"></table></div>
+  </section>
+  <section class="sheet">
+    <div class="cols">
+      <div><h3>Urutan menghidupkan</h3><ol class="steps" id="onF"></ol></div>
+      <div><h3>Tuning PID</h3><ol class="steps" id="tuneF"></ol></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <h2>Siap demo: simulasi loop dengan nilai komponen asli</h2>
+    <p class="lead">Model: REF = 0,91·(u − 0,6), duty = (REF − 0,5)/3,9, motor orde-1 (τ 0,1–0,5 s, zona mati 5–20%), filter LM2917N (C34·VR16 ≈ 0,17 s), op-amp jenuh ±8 V. Setpoint 3 V di t = 0,5 s, lalu beban motor naik 25% di t = 5 s.</p>
+    <div class="keys"><span style="--c:var(--s0)"><i></i>SP 3 V</span><span style="--c:var(--s2)"><i></i>PV dengan C31 = 4,7 µF elco (VR11 15k, VR12 47k, VR13 5k) · respon sama dengan 2,2 µF/100k</span><span style="--c:var(--s6)"><i></i>PV dengan C31 = 470 nF (lama): overshoot ≈ 30% dan bergoyang lama</span></div>
+    <div class="diag" style="max-width:820px"><svg viewBox="0 0 680 270" role="img" aria-label="Simulasi respon close loop"><line x1="60" x2="660" y1="20" y2="20" style="stroke:var(--line)"/><text x="52" y="24" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">5</text><line x1="60" x2="660" y1="60" y2="60" style="stroke:var(--line)"/><text x="52" y="64" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">4</text><line x1="60" x2="660" y1="100" y2="100" style="stroke:var(--line)"/><text x="52" y="104" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">3</text><line x1="60" x2="660" y1="140" y2="140" style="stroke:var(--line)"/><text x="52" y="144" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">2</text><line x1="60" x2="660" y1="180" y2="180" style="stroke:var(--line)"/><text x="52" y="184" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">1</text><line x1="60" x2="660" y1="220" y2="220" style="stroke:var(--line)"/><text x="52" y="224" text-anchor="end" style="fill:var(--muted);font:11px var(--f-mono)">0</text><text x="60" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">0</text><text x="135" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">1</text><text x="210" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">2</text><text x="285" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">3</text><text x="360" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">4</text><text x="435" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">5</text><text x="510" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">6</text><text x="585" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">7</text><text x="660" y="238" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">8</text>
+<line x1="435.0" x2="435.0" y1="20" y2="220" style="stroke:var(--muted);stroke-dasharray:4 4"/><text x="439.0" y="34" style="fill:var(--muted);font:11px var(--f-body)">beban +25%</text>
+<polyline points="60,220 97.5,220 97.5,100.0 660,100.0" style="fill:none;stroke:var(--s0);stroke-width:2;stroke-dasharray:6 4"/>
+<polyline points="60.0,220.0 61.5,220.0 63.0,220.0 64.5,220.0 66.0,220.0 67.5,220.0 69.0,220.0 70.5,220.0 72.0,220.0 73.5,220.0 75.0,220.0 76.5,220.0 78.0,220.0 79.5,220.0 81.0,220.0 82.5,220.0 84.0,220.0 85.5,220.0 87.0,220.0 88.5,220.0 90.0,220.0 91.5,220.0 93.0,220.0 94.5,220.0 96.0,220.0 97.5,220.0 99.0,219.1 100.5,216.6 102.0,212.8 103.5,208.0 105.0,202.5 106.5,196.3 108.0,189.8 109.5,182.9 111.0,175.8 112.5,168.7 114.0,161.6 115.5,154.5 117.0,147.5 118.5,140.7 120.0,134.1 121.5,127.6 123.0,121.4 124.5,115.5 126.0,109.8 127.5,104.3 129.0,99.1 130.5,94.2 132.0,89.4 133.5,85.0 135.0,80.8 136.5,76.8 138.0,73.0 139.5,69.6 141.0,66.6 142.5,64.3 144.0,62.6 145.5,61.8 147.0,61.8 148.5,62.8 150.0,64.5 151.5,67.1 153.0,70.4 154.5,74.4 156.0,78.9 157.5,83.8 159.0,89.0 160.5,94.4 162.0,99.8 163.5,105.1 165.0,110.1 166.5,114.8 168.0,118.9 169.5,122.4 171.0,125.2 172.5,127.3 174.0,128.6 175.5,129.1 177.0,128.8 178.5,127.7 180.0,125.9 181.5,123.5 183.0,120.6 184.5,117.4 186.0,113.9 187.5,110.2 189.0,106.4 190.5,102.5 192.0,98.6 193.5,94.8 195.0,91.0 196.5,87.6 198.0,84.4 199.5,81.7 201.0,79.5 202.5,77.9 204.0,76.9 205.5,76.5 207.0,76.7 208.5,77.5 210.0,79.0 211.5,80.9 213.0,83.3 214.5,86.1 216.0,89.2 217.5,92.5 219.0,96.0 220.5,99.5 222.0,102.9 223.5,106.2 225.0,109.2 226.5,111.9 228.0,114.2 229.5,116.1 231.0,117.6 232.5,118.4 234.0,118.8 235.5,118.7 237.0,118.1 238.5,117.0 240.0,115.4 241.5,113.5 243.0,111.3 244.5,108.8 246.0,106.1 247.5,103.3 249.0,100.4 250.5,97.7 252.0,95.0 253.5,92.6 255.0,90.4 256.5,88.5 258.0,87.0 259.5,85.8 261.0,85.0 262.5,84.7 264.0,84.8 265.5,85.3 267.0,86.2 268.5,87.5 270.0,89.0 271.5,90.8 273.0,92.9 274.5,95.0 276.0,97.3 277.5,99.6 279.0,101.8 280.5,104.0 282.0,106.0 283.5,107.8 285.0,109.3 286.5,110.6 288.0,111.5 289.5,112.1 291.0,112.4 292.5,112.3 294.0,111.9 295.5,111.2 297.0,110.2 298.5,108.9 300.0,107.4 301.5,105.8 303.0,104.0 304.5,102.2 306.0,100.4 307.5,98.5 309.0,96.8 310.5,95.2 312.0,93.7 313.5,92.5 315.0,91.4 316.5,90.7 318.0,90.2 319.5,90.0 321.0,90.0 322.5,90.4 324.0,90.9 325.5,91.8 327.0,92.8 328.5,94.0 330.0,95.3 331.5,96.7 333.0,98.2 334.5,99.7 336.0,101.2 337.5,102.6 339.0,103.9 340.5,105.1 342.0,106.1 343.5,106.9 345.0,107.6 346.5,108.0 348.0,108.1 349.5,108.1 351.0,107.8 352.5,107.4 354.0,106.7 355.5,105.9 357.0,104.9 358.5,103.8 360.0,102.7 361.5,101.5 363.0,100.2 364.5,99.0 366.0,97.9 367.5,96.8 369.0,95.9 370.5,95.1 372.0,94.4 373.5,93.9 375.0,93.6 376.5,93.4 378.0,93.4 379.5,93.6 381.0,94.0 382.5,94.6 384.0,95.2 385.5,96.0 387.0,96.9 388.5,97.8 390.0,98.8 391.5,99.8 393.0,100.8 394.5,101.7 396.0,102.6 397.5,103.3 399.0,104.0 400.5,104.5 402.0,105.0 403.5,105.2 405.0,105.4 406.5,105.3 408.0,105.2 409.5,104.8 411.0,104.4 412.5,103.9 414.0,103.2 415.5,102.5 417.0,101.8 418.5,101.0 420.0,100.2 421.5,99.4 423.0,98.6 424.5,98.0 426.0,97.3 427.5,96.8 429.0,96.3 430.5,96.0 432.0,95.8 433.5,95.7 435.0,95.7 436.5,95.9 438.0,96.4 439.5,97.2 441.0,98.1 442.5,99.2 444.0,100.3 445.5,101.5 447.0,102.7 448.5,103.8 450.0,104.9 451.5,105.8 453.0,106.7 454.5,107.4 456.0,108.0 457.5,108.3 459.0,108.5 460.5,108.5 462.0,108.3 463.5,107.9 465.0,107.4 466.5,106.7 468.0,105.9 469.5,105.0 471.0,104.0 472.5,103.0 474.0,101.8 475.5,100.7 477.0,99.6 478.5,98.6 480.0,97.5 481.5,96.6 483.0,95.8 484.5,95.0 486.0,94.4 487.5,94.0 489.0,93.6 490.5,93.5 492.0,93.5 493.5,93.6 495.0,93.9 496.5,94.2 498.0,94.8 499.5,95.4 501.0,96.1 502.5,96.9 504.0,97.7 505.5,98.5 507.0,99.4 508.5,100.3 510.0,101.1 511.5,101.9 513.0,102.6 514.5,103.3 516.0,103.8 517.5,104.3 519.0,104.7 520.5,104.9 522.0,105.0 523.5,105.1 525.0,105.0 526.5,104.8 528.0,104.5 529.5,104.1 531.0,103.6 532.5,103.0 534.0,102.4 535.5,101.8 537.0,101.2 538.5,100.5 540.0,99.8 541.5,99.2 543.0,98.6 544.5,98.0 546.0,97.5 547.5,97.0 549.0,96.7 550.5,96.4 552.0,96.2 553.5,96.1 555.0,96.1 556.5,96.2 558.0,96.3 559.5,96.5 561.0,96.8 562.5,97.2 564.0,97.6 565.5,98.1 567.0,98.6 568.5,99.1 570.0,99.6 571.5,100.1 573.0,100.6 574.5,101.1 576.0,101.6 577.5,102.0 579.0,102.3 580.5,102.6 582.0,102.8 583.5,103.0 585.0,103.0 586.5,103.0 588.0,103.0 589.5,102.9 591.0,102.7 592.5,102.5 594.0,102.2 595.5,101.8 597.0,101.5 598.5,101.1 600.0,100.7 601.5,100.3 603.0,99.9 604.5,99.5 606.0,99.2 607.5,98.8 609.0,98.5 610.5,98.2 612.0,98.0 613.5,97.8 615.0,97.7 616.5,97.6 618.0,97.6 619.5,97.7 621.0,97.8 622.5,97.9 624.0,98.1 625.5,98.3 627.0,98.6 628.5,98.8 630.0,99.1 631.5,99.4 633.0,99.8 634.5,100.1 636.0,100.4 637.5,100.6 639.0,100.9 640.5,101.2 642.0,101.4 643.5,101.5 645.0,101.7 646.5,101.8 648.0,101.8 649.5,101.8 651.0,101.8 652.5,101.7 654.0,101.6 655.5,101.5 657.0,101.3 658.5,101.1" style="fill:none;stroke:var(--s6);stroke-width:1.6;opacity:.75"/>
+<polyline points="60.0,220.0 61.5,220.0 63.0,220.0 64.5,220.0 66.0,220.0 67.5,220.0 69.0,220.0 70.5,220.0 72.0,220.0 73.5,220.0 75.0,220.0 76.5,220.0 78.0,220.0 79.5,220.0 81.0,220.0 82.5,220.0 84.0,220.0 85.5,220.0 87.0,220.0 88.5,220.0 90.0,220.0 91.5,220.0 93.0,220.0 94.5,220.0 96.0,220.0 97.5,220.0 99.0,219.1 100.5,216.6 102.0,212.8 103.5,208.0 105.0,202.5 106.5,196.3 108.0,189.8 109.5,183.0 111.0,176.2 112.5,169.6 114.0,163.1 115.5,157.0 117.0,151.2 118.5,145.8 120.0,140.8 121.5,136.3 123.0,132.2 124.5,128.5 126.0,125.3 127.5,122.4 129.0,119.9 130.5,117.8 132.0,115.9 133.5,114.3 135.0,113.0 136.5,111.8 138.0,110.8 139.5,110.0 141.0,109.3 142.5,108.8 144.0,108.3 145.5,107.9 147.0,107.5 148.5,107.2 150.0,106.9 151.5,106.6 153.0,106.4 154.5,106.2 156.0,106.0 157.5,105.7 159.0,105.5 160.5,105.3 162.0,105.1 163.5,104.8 165.0,104.6 166.5,104.4 168.0,104.2 169.5,104.0 171.0,103.7 172.5,103.5 174.0,103.3 175.5,103.1 177.0,102.9 178.5,102.7 180.0,102.5 181.5,102.3 183.0,102.2 184.5,102.0 186.0,101.8 187.5,101.7 189.0,101.6 190.5,101.4 192.0,101.3 193.5,101.2 195.0,101.1 196.5,101.0 198.0,101.0 199.5,100.9 201.0,100.8 202.5,100.8 204.0,100.7 205.5,100.6 207.0,100.6 208.5,100.6 210.0,100.5 211.5,100.5 213.0,100.4 214.5,100.4 216.0,100.4 217.5,100.4 219.0,100.3 220.5,100.3 222.0,100.3 223.5,100.2 225.0,100.2 226.5,100.2 228.0,100.2 229.5,100.2 231.0,100.2 232.5,100.2 234.0,100.2 235.5,100.2 237.0,100.1 238.5,100.1 240.0,100.1 241.5,100.1 243.0,100.1 244.5,100.1 246.0,100.1 247.5,100.1 249.0,100.1 250.5,100.1 252.0,100.1 253.5,100.1 255.0,100.0 256.5,100.0 258.0,100.0 259.5,100.0 261.0,100.0 262.5,100.0 264.0,100.0 265.5,100.0 267.0,100.0 268.5,100.0 270.0,100.0 271.5,100.0 273.0,100.0 274.5,100.0 276.0,100.0 277.5,100.0 279.0,100.0 280.5,100.0 282.0,100.0 283.5,100.0 285.0,100.0 286.5,100.0 288.0,100.0 289.5,100.0 291.0,100.0 292.5,100.0 294.0,100.0 295.5,100.0 297.0,100.0 298.5,100.0 300.0,100.0 301.5,100.0 303.0,100.0 304.5,100.0 306.0,100.0 307.5,100.0 309.0,100.0 310.5,100.0 312.0,100.0 313.5,100.0 315.0,100.0 316.5,100.0 318.0,100.0 319.5,100.0 321.0,100.0 322.5,100.0 324.0,100.0 325.5,100.0 327.0,100.0 328.5,100.0 330.0,100.0 331.5,100.0 333.0,100.0 334.5,100.0 336.0,100.0 337.5,100.0 339.0,100.0 340.5,100.0 342.0,100.0 343.5,100.0 345.0,100.0 346.5,100.0 348.0,100.0 349.5,100.0 351.0,100.0 352.5,100.0 354.0,100.0 355.5,100.0 357.0,100.0 358.5,100.0 360.0,100.0 361.5,100.0 363.0,100.0 364.5,100.0 366.0,100.0 367.5,100.0 369.0,100.0 370.5,100.0 372.0,100.0 373.5,100.0 375.0,100.0 376.5,100.0 378.0,100.0 379.5,100.0 381.0,100.0 382.5,100.0 384.0,100.0 385.5,100.0 387.0,100.0 388.5,100.0 390.0,100.0 391.5,100.0 393.0,100.0 394.5,100.0 396.0,100.0 397.5,100.0 399.0,100.0 400.5,100.0 402.0,100.0 403.5,100.0 405.0,100.0 406.5,100.0 408.0,100.0 409.5,100.0 411.0,100.0 412.5,100.0 414.0,100.0 415.5,100.0 417.0,100.0 418.5,100.0 420.0,100.0 421.5,100.0 423.0,100.0 424.5,100.0 426.0,100.0 427.5,100.0 429.0,100.0 430.5,100.0 432.0,100.0 433.5,100.0 435.0,100.0 436.5,100.1 438.0,100.4 439.5,100.8 441.0,101.4 442.5,102.0 444.0,102.7 445.5,103.4 447.0,104.0 448.5,104.7 450.0,105.3 451.5,105.8 453.0,106.3 454.5,106.8 456.0,107.1 457.5,107.4 459.0,107.6 460.5,107.8 462.0,107.9 463.5,108.0 465.0,107.9 466.5,107.8 468.0,107.7 469.5,107.6 471.0,107.4 472.5,107.2 474.0,106.9 475.5,106.7 477.0,106.4 478.5,106.1 480.0,105.8 481.5,105.5 483.0,105.2 484.5,104.9 486.0,104.6 487.5,104.4 489.0,104.1 490.5,103.8 492.0,103.6 493.5,103.3 495.0,103.1 496.5,102.9 498.0,102.7 499.5,102.5 501.0,102.3 502.5,102.1 504.0,102.0 505.5,101.8 507.0,101.7 508.5,101.6 510.0,101.4 511.5,101.3 513.0,101.2 514.5,101.1 516.0,101.0 517.5,101.0 519.0,100.9 520.5,100.8 522.0,100.8 523.5,100.7 525.0,100.6 526.5,100.6 528.0,100.6 529.5,100.5 531.0,100.5 532.5,100.4 534.0,100.4 535.5,100.4 537.0,100.4 538.5,100.3 540.0,100.3 541.5,100.3 543.0,100.3 544.5,100.2 546.0,100.2 547.5,100.2 549.0,100.2 550.5,100.2 552.0,100.2 553.5,100.2 555.0,100.2 556.5,100.2 558.0,100.1 559.5,100.1 561.0,100.1 562.5,100.1 564.0,100.1 565.5,100.1 567.0,100.1 568.5,100.1 570.0,100.1 571.5,100.1 573.0,100.1 574.5,100.1 576.0,100.0 577.5,100.0 579.0,100.0 580.5,100.0 582.0,100.0 583.5,100.0 585.0,100.0 586.5,100.0 588.0,100.0 589.5,100.0 591.0,100.0 592.5,100.0 594.0,100.0 595.5,100.0 597.0,100.0 598.5,100.0 600.0,100.0 601.5,100.0 603.0,100.0 604.5,100.0 606.0,100.0 607.5,100.0 609.0,100.0 610.5,100.0 612.0,100.0 613.5,100.0 615.0,100.0 616.5,100.0 618.0,100.0 619.5,100.0 621.0,100.0 622.5,100.0 624.0,100.0 625.5,100.0 627.0,100.0 628.5,100.0 630.0,100.0 631.5,100.0 633.0,100.0 634.5,100.0 636.0,100.0 637.5,100.0 639.0,100.0 640.5,100.0 642.0,100.0 643.5,100.0 645.0,100.0 646.5,100.0 648.0,100.0 649.5,100.0 651.0,100.0 652.5,100.0 654.0,100.0 655.5,100.0 657.0,100.0 658.5,100.0" style="fill:none;stroke:var(--s2);stroke-width:2.6"/>
+<text x="360" y="262" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-body)">waktu (detik) · sumbu Y: tegangan PV (V)</text></svg></div>
+    <div class="cols">
+      <div><h3>Kenapa C31 diganti</h3><p>Dengan 470 nF, Ki paling kecil yang bisa dicapai VR12 (100 kΩ) adalah 21 /s. Itu terlalu agresif untuk motor + filter sensor, jadi PV naik-turun tanpa berhenti di hampir semua setelan. Dengan 4,7 µF dan VR12 47 kΩ, Ki = 4,5 /s (sama dengan 2,2 µF di 100 kΩ): PV sampai ke SP tanpa overshoot dan kembali sendiri saat beban berubah. Hasil ini stabil untuk τ motor 0,1–0,5 s.</p></div>
+      <div><h3>Checklist hari demo</h3><ol class="steps">
+        <li>PSU 5 V + 9 V, PSU 12 V, dan <b>baterai 9 V untuk −9 V</b>. Semua GND disatukan (kutub + baterai ke GND).</li>
+        <li>Cap JP1 di F14–F15 (posisi PID). Cap JP2 dilepas.</li>
+        <li>K1 (X15 → G10), kabel PV (B24 → L13), baterai 9 V: kutub − ke H6 dan P18, kutub + ke B25 (GND J10), VR15 ke J12.</li>
+        <li>Pasang snap baterai (−9 V) bersamaan dengan menyalakan PSU 9 V, lalu 5 V, terakhir 12 V motor. Setelah selesai, cabut snap baterai.</li>
+        <li>Demo 1: putar VR15 → kecepatan mengikuti, TP11 ≈ 0.</li>
+        <li>Demo 2: tahan poros pelan → duty TP6 naik sendiri, PV kembali ke SP.</li>
+        <li>Demo 3 (pembanding): cap JP1 ke F13–F14 = open loop, ulangi tahan poros → kecepatan turun dan tidak kembali.</li>
+      </ol></div>
+    </div>
+  </section>
+</div>
+
+<div id="pg-skem" hidden>
+  <section class="sheet">
+    <h2>Skematik final sensor: EE-SX112 → LM2917N</h2>
+    <p class="lead">Disk encoder memotong cahaya di celah EE-SX112. Kolektor phototransistor menghasilkan pulsa 0–9 V ke pin 1. LED dan pull-up memakai +9 V, tanpa 5 V. LM2917N mengubah frekuensi pulsa menjadi tegangan DC: PV di TP9 / J10. Warna kabel mengikuti tab tahap di Layout Sensor.</p>
+    <div class="keys" id="keysS"></div>
+    <div class="diag schw" id="schS" style="--mw:860px;--xw:1060px"></div>
+    <div class="f-line"><span class="mono"><b>PV = V(pin 9) × f × C33 × R(VR16)</b></span><span class="muted">V(pin 9) ≈ 7,6 V karena zener internal LM2917N · pin 6, 7, 13, 14 tidak disambung</span></div>
+  </section>
+  <section class="sheet">
+    <h2>Rangkaian per blok</h2>
+    <div class="blocks" id="blocksS"></div>
+  </section>
+  <section class="sheet">
+    <h2>Bahan papan sensor</h2>
+    <div class="tscroll"><table id="bomS"></table></div>
+  </section>
+  <section class="sheet">
+    <h2>Sebelum menyolder ulang</h2>
+    <ol class="steps" id="preS"></ol>
+  </section>
+</div>
+
+<div id="pg-samb" hidden>
+  <section class="sheet">
+    <h2>Sistem lengkap</h2>
+    <p class="lead">Setengah atas = close loop: sensor RPM (baris 20–28) dan PID (baris 1–19). Daya +9 V dan GND dari J2 lewat K3, K4; −9 V dari baterai 9 V (kutub − ke J11 dan J13, kutub + ke GND B25). PV dari J10 ke J9 dengan kabel pendek, u dari J8 ke J4 lewat K1. Posisi kabel ada di Layout → Digabung.</p>
+    <div class="diag" id="dgSys"></div>
+  </section>
+  <section class="sheet">
+    <h2>Tabel kabel</h2>
+    <div class="tscroll"><table id="wireS"></table></div>
+  </section>
+  <section class="sheet">
+    <div class="cols">
+      <div><h3>Modul L298N (tetap seperti open loop)</h3><div class="tscroll"><table id="l298"></table></div></div>
+      <div><h3>Urutan menyalakan</h3><ol class="steps" id="onS"></ol></div>
+    </div>
+  </section>
+</div>
+
+<div id="pg-pid" hidden>
+  <section class="sheet">
+    <h2>Skematik PID analog (2× LM324)</h2>
+    <p class="lead">Error e = SP − PV diolah jadi P, I, dan D. Ketiganya inverting, jadi bertanda negatif. Σ inverting membalik tanda itu sehingga u = Kp·e + Ki∫e + Kd·de/dt. Cukup 5 op-amp: IC5 (error, P, I) dan IC6 (D, Σ). Semuanya dipasang di setengah atas papan, baris 1–19, di atas sensor (Layout → Close Loop (atas), tab PID 0–6).</p>
+    <div class="keys" id="keysP"></div>
+    <div class="diag schw" id="schP" style="--mw:1000px;--xw:1260px"></div>
+    <div class="f-line"><span class="mono"><b>u = Kp·e + Ki∫e dt + Kd·de/dt</b></span><span class="muted">IC5, IC6: pin 4 → +9 V, pin 11 → −9 V · C21, C22, C24 100 nF · IC5 B, IC6 C, IC6 D tidak dipakai: out disatukan ke in−, in+ ke GND</span></div>
+  </section>
+  <section class="sheet">
+    <h2>Rangkaian per blok</h2>
+    <div class="blocks" id="blocksP"></div>
+  </section>
+  <section class="sheet">
+    <h2>Antarmuka di papan open loop (J4 → JP1)</h2>
+    <p class="lead">Bagian ini sudah ada di layout open loop (tahap 7), tapi dulu dikosongkan. Untuk close loop, sekarang perlu dipasang.</p>
+    <div class="diag schw" id="schJ" style="--mw:700px;--xw:820px"></div>
+  </section>
+  <section class="sheet">
+    <h2>Bahan</h2>
+    <div class="cols">
+      <div><h3>PID (setengah atas, baris 1–19)</h3><div class="tscroll"><table id="bomP"></table></div></div>
+      <div><h3>Tambahan di papan open loop</h3><div class="tscroll"><table id="bomJ"></table></div></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <h2>Catatan</h2>
+    <ol class="steps" id="noteP"></ol>
+  </section>
+</div>
+<div id="pg-m3d" hidden>
+  <section class="sheet">
+    <h2>Model 3D papan Mascot PCB002</h2>
+    <p class="lead muted">Seret untuk memutar, scroll atau cubit untuk zoom, klik kanan atau dua jari untuk menggeser. Klik komponen atau jalur solder untuk melihat nilai dan lubangnya. Setengah atas = close loop (sensor + PID), setengah bawah = open loop.</p>
+    <div class="ctrl" id="v3dCtl">
+      <div class="seg" role="group" aria-label="Sudut pandang"><button data-v="iso">Semua</button><button data-v="board">Papan</button><button data-v="sens">Sensor & disk</button><button data-v="drv">Driver</button><button data-v="top">Atas</button><button data-v="bot">Bawah (solder)</button><button data-v="side">Samping</button></div>
+      <div class="seg" role="group" aria-label="Fokus bagian"><button data-f="all">Semua</button><button data-f="open">Open loop</button><button data-f="sens">Sensor</button><button data-f="pid">PID</button><button data-f="mech">Motor & driver</button></div>
+      <label class="chk"><input type="checkbox" id="t3Sp" checked><span>Putar motor</span></label>
+      <label class="chk"><input type="checkbox" id="t3Lb" checked><span>Label</span></label>
+      <label class="chk"><input type="checkbox" id="t3Rn" checked><span>Jalur solder</span></label>
+      <label class="chk"><input type="checkbox" id="t3Kb" checked><span>Kabel K1/K3/K4</span></label>
+      <span class="muted" id="m3dStatus"></span>
+    </div>
+    <div id="v3d" style="height:min(78vh,780px);border:1px solid var(--line);border-radius:8px;background:var(--soft);margin-top:10px;touch-action:none;overflow:hidden"></div>
+    <div class="readout"><span>Klik: <b id="pick3d" style="font-family:var(--f-body)">–</b></span></div>
+    <p class="muted" style="margin:0;font-size:13px">Model ini dibangun langsung dari data layout yang sama dengan halaman Layout, jadi posisi lubang, jalur, dan komponen identik. Ukuran komponen mendekati asli (1 lubang = 2,54 mm). Butuh internet sekali untuk memuat three.js.</p>
+  </section>
+  <section class="sheet">
+    <h2>Cara memasang sensor opto ke disk motor</h2>
+    <p class="lead">Sensor slot bekerja dengan cahaya LED yang menembus celah. Disk bercelah dipasang di poros motor dan berputar <b>di tengah celah sensor</b>. Setiap slot yang lewat membuat cahaya tembus sehingga SIG turun ke 0 V, dan setiap bagian disk yang pejal menghalangi cahaya sehingga SIG naik ke 9 V. Klik tombol <b>Sensor & disk</b> di atas untuk melihatnya dari dekat.</p>
+    <div class="cols">
+      <div><h3>Langkah mekanik</h3><ol class="steps">
+        <li><b>Disk encoder:</b> Ø ±40 mm, tebal ≤ 1,5 mm, bahan tidak tembus cahaya (akrilik hitam, PCB polos, cetak 3D hitam, atau karton tebal yang dilaminasi). Jalur slot dibuat di radius 14–18 mm dengan lebar slot ≈ lebar bagian pejal (50:50). Jumlah slot pilih dari tabel di samping.</li>
+        <li><b>Pasang disk di poros</b> lewat hub/kopling atau lem epoxy. Disk harus tegak lurus poros: putar pelan dengan tangan, tepinya tidak boleh oleng lebih dari ±0,5 mm. Beri jarak ±5 mm dari badan motor.</li>
+        <li><b>Sensor di pojok papan sensor</b> (Mascot PCB002 kedua): K & A di kolom paling tepi, C & E 3 lubang ke dalam; K & C di baris paling ujung, A & E baris kedua. Celah sensor sejajar sisi panjang papan.</li>
+        <li><b>Motor dibaut ke papan sensor</b> pakai bracket/klem motor, poros mengarah ke sensor dan sejajar sisi pendek papan. Disk masuk ke celah sensor <b>dari atas</b>. Harus kokoh karena motor bergetar.</li>
+        <li><b>Tinggi poros:</b> tinggi titik cahaya sensor dari papan + 16 mm (radius tengah jalur slot). Contoh: titik cahaya 6–7 mm → poros ±22–23 mm di atas papan. Ganjal bracket kalau kurang tinggi. Disk harus di tengah celah, tidak menyentuh dinding sensor maupun dasar celah.</li>
+        <li><b>Kabel 4 urat</b> ≤ 30 cm, dipilin, disolder di kaki sensor sisi bawah papan sensor, lalu ke J6 papan utama: K → O27, A → N27, C → M27, E → L27. Rapikan di bawah papan supaya tidak tersambar disk.</li>
+        <li><b>Uji tanpa motor:</b> putar disk pelan dengan tangan. TP8 harus berganti 0 ↔ 9 V setiap kali slot lewat.</li>
+        <li><b>Uji dengan motor</b> (open loop, VR4 maksimum): ukur frekuensi TP8 di osiloskop. Itulah f<sub>max</sub>. RPM = f × 60 / N.</li>
+        <li>Lindungi sensor dari lampu atau matahari langsung. Kalau terganggu, tutup dengan selongsong hitam.</li>
+      </ol></div>
+      <div><h3>Jumlah slot dan C33</h3>
+        <p>f = N × RPM / 60. Supaya PV bisa sampai 5 V dengan VR16 di tengah (±150 kΩ), C33 ≈ 5 / (7,6 × f<sub>max</sub> × 150 kΩ).</p>
+        <div class="tscroll"><table><tr><th>RPM poros</th><th>Slot N</th><th>f<sub>max</sub></th><th>C33</th></tr>
+          <tr><td class="mono">300 (gearbox)</td><td class="mono">36</td><td class="mono">180 Hz</td><td class="mono">22 nF</td></tr>
+          <tr><td class="mono">1000</td><td class="mono">24</td><td class="mono">400 Hz</td><td class="mono">10 nF (default)</td></tr>
+          <tr><td class="mono">3000</td><td class="mono">12</td><td class="mono">600 Hz</td><td class="mono">6,8 nF</td></tr>
+          <tr><td class="mono">6000</td><td class="mono">6</td><td class="mono">600 Hz</td><td class="mono">6,8 nF</td></tr></table></div>
+        <p class="muted">Kalau RPM motormu belum tahu, pakai disk 12 slot dulu, ukur f<sub>max</sub> di TP8, baru tentukan C33 dari rumus di atas. Slot lebih banyak = PV lebih halus, tapi slot di bawah ±1,5 mm sulit dibuat rapi.</p>
+        <h3>Sambungan driver & motor</h3>
+        <div class="tscroll"><table><tr><th>L298N</th><th>Ke</th></tr>
+          <tr><td>Jumper cap ENA</td><td><b>Dilepas</b></td></tr>
+          <tr><td>ENA</td><td class="mono">J3 D23</td></tr>
+          <tr><td>IN1</td><td>Pin 5 V bekas jumper ENA (kabel female-female)</td></tr>
+          <tr><td>IN2</td><td class="mono">J3 C23 (GND)</td></tr>
+          <tr><td>GND (terminal)</td><td class="mono">J3 B23 + GND PSU</td></tr>
+          <tr><td>12V (terminal)</td><td>PSU +12 V, jumper 12V-EN tetap terpasang</td></tr>
+          <tr><td>OUT1, OUT2</td><td>Terminal motor. Kalau arah putar terbalik, tukar dua kabel ini.</td></tr></table></div>
+      </div>
+    </div>
+  </section>
+</div>
+</div>
+
+<script>
+const DATA = {"bot":{"comps":[{"id":"J1","typ":"hdr","val":"Input 5V","stage":"0","pins":[[0,1,"5V","+5V"],[0,2,"GND","GND"]],"body":null,"note":""},{"id":"J2","typ":"hdr","val":"Input 9V","stage":"0","pins":[[13,23,"9V","+9V"],[13,24,"GND","GND"]],"body":null,"note":""},{"id":"C8","typ":"capc","val":"100nF","stage":"0","pins":[[12,23,"9V","1"],[12,24,"GND","2"]],"body":null,"note":"Decoupling LM324"},{"id":"TG1","typ":"tpg","val":"GND probe","stage":"0","pins":[[3,11,"GND","G"]],"body":null,"note":""},{"id":"TG2","typ":"tpg","val":"GND probe","stage":"0","pins":[[16,11,"GND","G"]],"body":null,"note":""},{"id":"TG3","typ":"tpg","val":"GND probe","stage":"0","pins":[[17,24,"GND","G"]],"body":null,"note":""},{"id":"IC1","typ":"dip","val":"NE555","stage":"1","pins":[[2,4,"GND","1"],[2,5,"TIM","2"],[2,6,"NC3","3"],[2,7,"5V","4"],[5,7,"CV","5"],[5,6,"TIM","6"],[5,5,"TIM","7"],[5,4,"5V","8"]],"body":null,"note":""},{"id":"C4","typ":"capc","val":"100nF","stage":"1","pins":[[2,3,"GND","1"],[4,3,"5V","2"]],"body":null,"note":"Decoupling 555"},{"id":"C3","typ":"capc","val":"10nF","stage":"1","pins":[[5,8,"CV","1"],[5,10,"GND","2"]],"body":null,"note":""},{"id":"VR1","typ":"pot","val":"50k multiturn 3296W","stage":"1","pins":[[10,2,"5V","1"],[10,3,"5V","W"],[10,4,"R1A","3"]],"body":"trim","note":""},{"id":"R1","typ":"res","val":"10k","stage":"1","pins":[[6,6,"TIM","1"],[10,6,"R1A","2"]],"body":null,"note":""},{"id":"C1","typ":"capf","val":"1uF film","stage":"1","pins":[[10,9,"TIM","1"],[10,11,"GND","2"]],"body":null,"note":""},{"id":"TP1","typ":"tp","val":"TP1 Sawtooth","stage":"1","pins":[[8,9,"TIM","TP1"]],"body":null,"note":""},{"id":"IC2","typ":"dip","val":"LM324","stage":"2","pins":[[10,17,"AMP","1"],[11,17,"FB","2"],[12,17,"CLAMP","3"],[13,17,"9V","4"],[14,17,"REF","5"],[15,17,"CMPN","6"],[16,17,"PWM","7"],[16,14,"U3","8"],[15,14,"U3","9"],[14,14,"GND","10"],[13,14,"GND","11"],[12,14,"BUFIN","12"],[11,14,"BUF","13"],[10,14,"BUF","14"]],"body":null,"note":""},{"id":"R2","typ":"res","val":"10k","stage":"2","pins":[[12,9,"TIM","1"],[12,13,"BUFIN","2"]],"body":null,"note":""},{"id":"TP2","typ":"tp","val":"TP2 Buffer","stage":"2","pins":[[9,13,"BUF","TP2"]],"body":null,"note":""},{"id":"C2","typ":"cape","val":"47uF 16V","stage":"3","pins":[[8,14,"BUF","+"],[8,15,"CLAMP","-"]],"body":null,"note":""},{"id":"D1","typ":"dio","val":"1N4007","stage":"3","pins":[[7,12,"CLAMP","K"],[7,8,"VR2W","A"]],"body":null,"note":""},{"id":"VR2","typ":"pot","val":"10k multiturn 3296W","stage":"3","pins":[[15,7,"5V","1"],[15,8,"VR2W","W"],[15,9,"GND","3"]],"body":"trim","note":""},{"id":"R3","typ":"res","val":"10k","stage":"3","pins":[[5,15,"CLAMP","1"],[5,11,"GND","2"]],"body":null,"note":""},{"id":"TP3","typ":"tp","val":"TP3 Clamp","stage":"3","pins":[[6,14,"CLAMP","TP3"]],"body":null,"note":""},{"id":"R6","typ":"res","val":"10k","stage":"4","pins":[[6,16,"FB","1"],[6,20,"AMP","2"]],"body":null,"note":""},{"id":"VR3","typ":"pot","val":"10k multiturn 3296W","stage":"4","pins":[[3,16,"FB","1"],[3,17,"GND","W"],[3,18,"GND","3"]],"body":"trim","note":""},{"id":"TP4","typ":"tp","val":"TP4 Penguat","stage":"4","pins":[[9,20,"AMP","TP4"]],"body":null,"note":""},{"id":"R4","typ":"res","val":"10k","stage":"5","pins":[[11,21,"AMP","1"],[15,21,"CMPN","2"]],"body":null,"note":""},{"id":"VR4","typ":"pot","val":"B50K panel 16mm","stage":"5","pins":[[24,10,"5V","1"],[24,12,"VR4W","W"],[24,14,"GND","3"]],"body":"left","note":""},{"id":"JP1","typ":"hdr","val":"Selektor REF (jumper cap)","stage":"5","pins":[[19,13,"VR4W","VR4"],[19,14,"REF","REF"],[19,15,"PIDREF","PID"]],"body":null,"note":""},{"id":"TP7","typ":"tp","val":"TP7 Vref","stage":"5","pins":[[18,13,"REF","TP7"]],"body":null,"note":""},{"id":"J4","typ":"hdr","val":"Input PID","stage":"7","pins":[[18,10,"PIDIN","PID"],[18,11,"GND","GND"]],"body":null,"note":""},{"id":"R8","typ":"res","val":"1k","stage":"7","pins":[[18,9,"PIDIN","1"],[18,5,"PIDA","2"]],"body":null,"note":""},{"id":"D3","typ":"dio","val":"1N4007","stage":"7","pins":[[20,9,"PIDA","A"],[20,13,"PIDREF","K"]],"body":null,"note":""},{"id":"R9","typ":"res","val":"10k","stage":"7","pins":[[20,16,"PIDREF","1"],[24,16,"GND","2"]],"body":null,"note":""},{"id":"TP5","typ":"tp","val":"TP5 PWM","stage":"5","pins":[[17,18,"PWM","TP5"]],"body":null,"note":""},{"id":"R5","typ":"res","val":"1k","stage":"5","pins":[[19,17,"PWM","1"],[19,21,"GND","2"]],"body":null,"note":""},{"id":"R7","typ":"res","val":"1k (Rseri)","stage":"6","pins":[[21,17,"PWM","1"],[21,21,"EN","2"]],"body":null,"note":""},{"id":"D2","typ":"zen","val":"1N750 4V7","stage":"6","pins":[[23,21,"EN","K"],[23,18,"GND","A"]],"body":null,"note":""},{"id":"TP6","typ":"tp","val":"TP6 EN","stage":"6","pins":[[20,22,"EN","TP6"]],"body":null,"note":""},{"id":"J3","typ":"hdr","val":"Header ke L298N","stage":"6","pins":[[21,23,"EN","ENA"],[22,23,"GND","IN2"],[23,23,"GND","GND"]],"body":null,"note":""}],"runs":[{"net":"5V","a":[0,1],"b":[24,1],"stage":"0"},{"net":"5V","a":[4,3],"b":[5,3],"stage":"0"},{"net":"5V","a":[1,7],"b":[2,7],"stage":"0"},{"net":"5V","a":[24,1],"b":[24,10],"stage":"0"},{"net":"5V","a":[15,1],"b":[15,7],"stage":"0"},{"net":"5V","a":[10,1],"b":[10,3],"stage":"0"},{"net":"5V","a":[5,1],"b":[5,4],"stage":"0"},{"net":"GND","a":[0,18],"b":[3,18],"stage":"0"},{"net":"GND","a":[23,18],"b":[24,18],"stage":"0"},{"net":"GND","a":[0,11],"b":[23,11],"stage":"0"},{"net":"GND","a":[0,24],"b":[24,24],"stage":"0"},{"net":"GND","a":[13,14],"b":[14,14],"stage":"0"},{"net":"GND","a":[0,4],"b":[2,4],"stage":"0"},{"net":"GND","a":[0,2],"b":[0,24],"stage":"0"},{"net":"GND","a":[19,21],"b":[19,24],"stage":"0"},{"net":"GND","a":[24,14],"b":[24,24],"stage":"0"},{"net":"GND","a":[15,9],"b":[15,11],"stage":"0"},{"net":"GND","a":[23,23],"b":[23,24],"stage":"0"},{"net":"GND","a":[3,17],"b":[3,18],"stage":"0"},{"net":"GND","a":[5,10],"b":[5,11],"stage":"0"},{"net":"GND","a":[22,23],"b":[22,24],"stage":"0"},{"net":"GND","a":[13,11],"b":[13,14],"stage":"0"},{"net":"GND","a":[2,3],"b":[2,4],"stage":"0"},{"net":"9V","a":[12,23],"b":[13,23],"stage":"0"},{"net":"9V","a":[13,17],"b":[13,23],"stage":"0"},{"net":"TIM","a":[2,5],"b":[5,5],"stage":"1"},{"net":"TIM","a":[5,6],"b":[6,6],"stage":"1"},{"net":"TIM","a":[6,10],"b":[11,10],"stage":"1"},{"net":"TIM","a":[11,9],"b":[12,9],"stage":"1"},{"net":"TIM","a":[10,9],"b":[10,10],"stage":"1"},{"net":"TIM","a":[6,6],"b":[6,10],"stage":"1"},{"net":"TIM","a":[8,9],"b":[8,10],"stage":"1"},{"net":"TIM","a":[11,9],"b":[11,10],"stage":"1"},{"net":"TIM","a":[5,5],"b":[5,6],"stage":"1"},{"net":"CV","a":[5,7],"b":[5,8],"stage":"1"},{"net":"R1A","a":[10,4],"b":[10,6],"stage":"1"},{"net":"U3","a":[15,14],"b":[16,14],"stage":"5"},{"net":"BUFIN","a":[12,13],"b":[12,14],"stage":"2"},{"net":"BUF","a":[8,14],"b":[11,14],"stage":"2"},{"net":"BUF","a":[9,13],"b":[9,14],"stage":"2"},{"net":"CLAMP","a":[5,15],"b":[12,15],"stage":"3"},{"net":"CLAMP","a":[7,12],"b":[7,15],"stage":"3"},{"net":"CLAMP","a":[12,15],"b":[12,17],"stage":"3"},{"net":"CLAMP","a":[6,14],"b":[6,15],"stage":"3"},{"net":"VR2W","a":[7,8],"b":[15,8],"stage":"3"},{"net":"FB","a":[3,16],"b":[11,16],"stage":"4"},{"net":"FB","a":[11,16],"b":[11,17],"stage":"4"},{"net":"AMP","a":[8,21],"b":[11,21],"stage":"4"},{"net":"AMP","a":[6,20],"b":[8,20],"stage":"4"},{"net":"AMP","a":[8,17],"b":[10,17],"stage":"4"},{"net":"AMP","a":[8,17],"b":[8,21],"stage":"4"},{"net":"AMP","a":[9,20],"b":[9,21],"stage":"4"},{"net":"CMPN","a":[15,17],"b":[15,21],"stage":"5"},{"net":"VR4W","a":[19,12],"b":[24,12],"stage":"5"},{"net":"VR4W","a":[19,12],"b":[19,13],"stage":"5"},{"net":"REF","a":[14,16],"b":[17,16],"stage":"5"},{"net":"REF","a":[17,14],"b":[19,14],"stage":"5"},{"net":"REF","a":[17,14],"b":[17,16],"stage":"5"},{"net":"REF","a":[14,16],"b":[14,17],"stage":"5"},{"net":"REF","a":[18,13],"b":[18,14],"stage":"5"},{"net":"PIDIN","a":[18,9],"b":[18,10],"stage":"7"},{"net":"PIDA","a":[18,5],"b":[20,5],"stage":"7"},{"net":"PIDA","a":[20,5],"b":[20,9],"stage":"7"},{"net":"PIDREF","a":[19,15],"b":[20,15],"stage":"7"},{"net":"PIDREF","a":[20,13],"b":[20,16],"stage":"7"},{"net":"PWM","a":[16,17],"b":[21,17],"stage":"5"},{"net":"PWM","a":[17,17],"b":[17,18],"stage":"5"},{"net":"EN","a":[21,21],"b":[23,21],"stage":"6"},{"net":"EN","a":[20,22],"b":[21,22],"stage":"6"},{"net":"EN","a":[21,21],"b":[21,23],"stage":"6"}],"jumpers":[{"id":"W1","net":"5V","a":[1,7],"b":[1,1],"stage":"1","color":"#d32f2f"}],"stageOfNet":{"5V":"0","9V":"0","12V":"0","GND":"0","TIM":"1","R1A":"1","CV":"1","BUF":"2","BUFIN":"2","CLAMP":"3","VR2W":"3","FB":"4","AMP":"4","CMPN":"5","REF":"5","PWM":"5","U3":"5","EN":"6","VR4W":"5","PIDIN":"7","PIDA":"7","PIDREF":"7","OUT1":"6","OUT2":"6"}},"top":{"comps":[{"id":"J5","typ":"hdr","val":"Input +9V","stage":"w","pins":[[23,20,"GND","GND"],[23,21,"VP","+9V"]],"body":null,"note":""},{"id":"IC7","typ":"dip","val":"LM2917N","stage":"w","pins":[[14,24,"SIG","1"],[15,24,"CP1","2"],[16,24,"CP2","3"],[17,24,"CP2","4"],[18,24,"PVR","5"],[19,24,"NC6","6"],[20,24,"NC7","7"],[20,21,"VT","8"],[19,21,"VT","9"],[18,21,"PVR","10"],[17,21,"TREF","11"],[16,21,"GND","12"],[15,21,"NC13","13"],[14,21,"NC14","14"]],"body":null,"note":""},{"id":"C33","typ":"capc","val":"10nF","stage":"c","pins":[[15,26,"CP1","1"],[15,28,"GND","2"]],"body":null,"note":"C1 charge pump (hitung dari f_max)"},{"id":"C34","typ":"capf","val":"1uF","stage":"c","pins":[[17,26,"CP2","1"],[17,28,"GND","2"]],"body":null,"note":"C2 filter output"},{"id":"VR16","typ":"pot","val":"200k multiturn 3296W","stage":"c","pins":[[19,27,"CP2","1"],[20,27,"GND","W"],[21,27,"GND","3"]],"body":"trim","note":"R1 charge pump, kalibrasi PV maks = 5 V"},{"id":"R49","typ":"res","val":"10k","stage":"v","pins":[[21,22,"PVR","1"],[21,26,"GND","2"]],"body":null,"note":"R beban emitter"},{"id":"R50","typ":"res","val":"150Ω","stage":"w","pins":[[19,20,"VT","1"],[19,16,"VP","2"]],"body":null,"note":"R seri +9V ke zener LM2917N"},{"id":"C35","typ":"capc","val":"100nF","stage":"w","pins":[[20,20,"VT","1"],[20,19,"GND","2"]],"body":null,"note":"decoupling LM2917N"},{"id":"R54","typ":"res","val":"33k","stage":"n","pins":[[18,20,"TREF","1"],[18,16,"VP","2"]],"body":null,"note":"pembagi ref TACH−"},{"id":"R55","typ":"res","val":"10k","stage":"n","pins":[[17,20,"TREF","1"],[13,20,"GND","2"]],"body":null,"note":"pembagi ref TACH−"},{"id":"TP9","typ":"tp","val":"TP PV","stage":"v","pins":[[13,21,"PVR","TP9"]],"body":null,"note":""},{"id":"J10","typ":"hdr","val":"Output PV","stage":"v","pins":[[23,24,"PVR","PV"],[23,25,"GND","GND"]],"body":null,"note":"B25 (GND) juga dipakai untuk kutub + baterai 9 V"},{"id":"J6","typ":"hdr","val":"EE-SX112","stage":"o","pins":[[10,27,"GND","K"],[11,27,"LEDA","A"],[12,27,"SIG","C"],[13,27,"GND","E"]],"body":null,"note":""},{"id":"R52","typ":"res","val":"470Ω","stage":"o","pins":[[11,26,"LEDA","1"],[11,22,"VP","2"]],"body":null,"note":"R LED opto dari +9V (≈ 16 mA)"},{"id":"R53","typ":"res","val":"22k","stage":"o","pins":[[12,26,"SIG","1"],[12,22,"VP","2"]],"body":null,"note":"pull-up kolektor opto ke +9V"},{"id":"TP8","typ":"tp","val":"TP SIG","stage":"o","pins":[[13,25,"SIG","TP8"]],"body":null,"note":""},{"id":"IC5","typ":"dip","val":"LM324","stage":"pe","pins":[[14,4,"P","1"],[13,4,"PM","2"],[12,4,"GND","3"],[11,4,"VP","4"],[10,4,"GND","5"],[9,4,"XB","6"],[8,4,"XB","7"],[8,7,"I","8"],[9,7,"INM","9"],[10,7,"GND","10"],[11,7,"VN","11"],[12,7,"AP","12"],[13,7,"AM","13"],[14,7,"E","14"]],"body":null,"note":""},{"id":"IC6","typ":"dip","val":"LM324","stage":"pu","pins":[[7,16,"DR","1"],[6,16,"DM","2"],[5,16,"GND","3"],[4,16,"VP","4"],[3,16,"GND","5"],[2,16,"SM","6"],[1,16,"U","7"],[1,19,"XC","8"],[2,19,"XC","9"],[3,19,"GND","10"],[4,19,"VN2","11"],[5,19,"GND","12"],[6,19,"XD","13"],[7,19,"XD","14"]],"body":null,"note":""},{"id":"J11","typ":"hdr","val":"-9V untuk IC5","stage":"pw","pins":[[17,6,"VN","-9V"]],"body":null,"note":""},{"id":"J13","typ":"hdr","val":"-9V untuk IC6","stage":"pw","pins":[[9,18,"VN2","-9V"]],"body":null,"note":""},{"id":"R44","typ":"res","val":"10k","stage":"pe","pins":[[11,8,"AP","1"],[11,12,"GND","2"]],"body":null,"note":""},{"id":"R43","typ":"res","val":"10k","stage":"pe","pins":[[12,8,"AP","1"],[12,12,"SPW","2"]],"body":null,"note":""},{"id":"R42","typ":"res","val":"10k","stage":"pe","pins":[[13,8,"AM","1"],[13,12,"PV","2"]],"body":null,"note":""},{"id":"R41","typ":"res","val":"10k","stage":"pe","pins":[[14,8,"AM","1"],[14,12,"E","2"]],"body":null,"note":""},{"id":"J9","typ":"hdr","val":"Input PV (kabel dari J10)","stage":"ps","pins":[[13,13,"PV","PV"]],"body":null,"note":""},{"id":"J12","typ":"hdr","val":"Ke VR15 (SP)","stage":"ps","pins":[[12,13,"SPW","W"],[12,14,"GND","3"],[12,15,"SPH","1"]],"body":null,"note":""},{"id":"R48","typ":"res","val":"82k","stage":"ps","pins":[[13,15,"SPH","1"],[17,15,"VP","2"]],"body":null,"note":""},{"id":"TP11","typ":"tp","val":"TP11","stage":"pe","pins":[[16,9,"E","TP11"]],"body":null,"note":""},{"id":"R31","typ":"res","val":"10k","stage":"pp","pins":[[15,7,"E","1"],[15,3,"PM","2"]],"body":null,"note":""},{"id":"VR11","typ":"pot","val":"50k multiturn 3296W","stage":"pp","pins":[[17,2,"PM","1"],[17,3,"P","W"],[17,4,"P","3"]],"body":"trim","note":""},{"id":"TP12","typ":"tp","val":"TP12","stage":"pp","pins":[[19,4,"P","TP12"]],"body":null,"note":""},{"id":"R34","typ":"res","val":"10k","stage":"pp","pins":[[14,2,"P","1"],[10,2,"SM","2"]],"body":null,"note":""},{"id":"VR12","typ":"pot","val":"100k multiturn 3296W","stage":"pi","pins":[[7,9,"INM","3"],[8,9,"INM","W"],[9,9,"E","1"]],"body":"trim","note":""},{"id":"C31","typ":"cape","val":"4,7uF 50V","stage":"pi","pins":[[4,8,"I","-"],[6,8,"INM","+"]],"body":null,"note":"Elco polar 4,7 µF 50 V. Kaki + (panjang) di S8 sisi INM, kaki − (strip) di U8 sisi output I. VR12 ≈ 47 kΩ"},{"id":"JP2","typ":"hdr","val":"Reset integrator","stage":"pi","pins":[[5,7,"I","1"],[6,7,"INM","2"]],"body":null,"note":""},{"id":"R38","typ":"res","val":"10k","stage":"pi","pins":[[6,5,"I","1"],[2,5,"SM","2"]],"body":null,"note":""},{"id":"TP13","typ":"tp","val":"TP13","stage":"pi","pins":[[7,4,"I","TP13"]],"body":null,"note":""},{"id":"R47","typ":"res","val":"10k","stage":"pd","pins":[[4,11,"E","1"],[8,11,"DN","2"]],"body":null,"note":""},{"id":"C32","typ":"cape","val":"10uF 50V","stage":"pd","pins":[[9,11,"DN","+"],[9,12,"DM","-"]],"body":null,"note":"Elco polar 10 µF 50 V (Ø5 mm). Kaki + (panjang) di P11 sisi R47, kaki − (strip) di P12 sisi IC6/VR13"},{"id":"VR13","typ":"pot","val":"100k multiturn 3296W","stage":"pd","pins":[[6,13,"DM","1"],[7,13,"DR","W"],[8,13,"DR","3"]],"body":"trim","note":""},{"id":"R35","typ":"res","val":"10k","stage":"pd","pins":[[7,15,"DR","1"],[2,15,"SM","2"]],"body":null,"note":""},{"id":"TP14","typ":"tp","val":"TP14","stage":"pd","pins":[[8,15,"DR","TP14"]],"body":null,"note":""},{"id":"R36","typ":"res","val":"10k","stage":"pu","pins":[[1,14,"U","1"],[1,10,"SM","2"]],"body":null,"note":""},{"id":"J8","typ":"hdr","val":"Output u (ke J4)","stage":"pu","pins":[[1,15,"U","u"]],"body":null,"note":""},{"id":"C21","typ":"capc","val":"100nF","stage":"pw","pins":[[23,5,"VP","1"],[24,5,"GND","2"]],"body":null,"note":""},{"id":"C22","typ":"capc","val":"100nF","stage":"pw","pins":[[18,5,"VP","1"],[18,6,"VN","2"]],"body":null,"note":""},{"id":"C24","typ":"capc","val":"100nF","stage":"pw","pins":[[8,18,"VN2","1"],[8,19,"GND","2"]],"body":null,"note":""}],"runs":[{"net":"GND","a":[16,19],"b":[20,19],"stage":"w"},{"net":"GND","a":[6,28],"b":[24,28],"stage":"w"},{"net":"GND","a":[6,20],"b":[16,20],"stage":"w"},{"net":"GND","a":[23,20],"b":[24,20],"stage":"w"},{"net":"GND","a":[23,25],"b":[24,25],"stage":"w"},{"net":"GND","a":[20,27],"b":[21,27],"stage":"w"},{"net":"GND","a":[24,20],"b":[24,28],"stage":"w"},{"net":"GND","a":[6,20],"b":[6,28],"stage":"w"},{"net":"GND","a":[13,27],"b":[13,28],"stage":"w"},{"net":"GND","a":[21,26],"b":[21,28],"stage":"w"},{"net":"GND","a":[16,19],"b":[16,21],"stage":"w"},{"net":"GND","a":[10,27],"b":[10,28],"stage":"w"},{"net":"VP","a":[18,16],"b":[22,16],"stage":"w"},{"net":"VP","a":[22,21],"b":[23,21],"stage":"w"},{"net":"VP","a":[22,16],"b":[22,22],"stage":"w"},{"net":"CP2","a":[17,26],"b":[19,26],"stage":"c"},{"net":"CP2","a":[16,24],"b":[17,24],"stage":"c"},{"net":"CP2","a":[19,26],"b":[19,27],"stage":"c"},{"net":"CP2","a":[17,24],"b":[17,26],"stage":"c"},{"net":"VT","a":[19,21],"b":[20,21],"stage":"w"},{"net":"VT","a":[20,20],"b":[20,21],"stage":"w"},{"net":"VT","a":[19,20],"b":[19,21],"stage":"w"},{"net":"PVR","a":[13,22],"b":[21,22],"stage":"v"},{"net":"PVR","a":[21,24],"b":[23,24],"stage":"v"},{"net":"PVR","a":[18,21],"b":[18,24],"stage":"v"},{"net":"PVR","a":[21,22],"b":[21,24],"stage":"v"},{"net":"PVR","a":[13,21],"b":[13,22],"stage":"v"},{"net":"CP1","a":[15,24],"b":[15,26],"stage":"c"},{"net":"TREF","a":[17,20],"b":[18,20],"stage":"n"},{"net":"TREF","a":[17,20],"b":[17,21],"stage":"n"},{"net":"LEDA","a":[11,26],"b":[11,27],"stage":"o"},{"net":"SIG","a":[13,24],"b":[14,24],"stage":"o"},{"net":"SIG","a":[12,26],"b":[13,26],"stage":"o"},{"net":"SIG","a":[13,24],"b":[13,26],"stage":"o"},{"net":"SIG","a":[12,26],"b":[12,27],"stage":"o"},{"net":"VP","a":[10,22],"b":[12,22],"stage":"o"},{"net":"VP","a":[10,16],"b":[18,16],"stage":"o"},{"net":"VP","a":[11,5],"b":[23,5],"stage":"pw"},{"net":"VP","a":[4,17],"b":[8,17],"stage":"pw"},{"net":"VP","a":[8,16],"b":[10,16],"stage":"pw"},{"net":"VP","a":[17,15],"b":[17,16],"stage":"pw"},{"net":"VP","a":[22,5],"b":[22,16],"stage":"pw"},{"net":"VP","a":[11,4],"b":[11,5],"stage":"pw"},{"net":"VP","a":[8,16],"b":[8,17],"stage":"pw"},{"net":"VP","a":[4,16],"b":[4,17],"stage":"pw"},{"net":"GND","a":[10,3],"b":[12,3],"stage":"pw"},{"net":"GND","a":[0,20],"b":[6,20],"stage":"pw"},{"net":"GND","a":[10,12],"b":[11,12],"stage":"pw"},{"net":"GND","a":[0,1],"b":[11,1],"stage":"pw"},{"net":"GND","a":[3,15],"b":[5,15],"stage":"pw"},{"net":"GND","a":[11,14],"b":[12,14],"stage":"pw"},{"net":"GND","a":[24,5],"b":[24,20],"stage":"pw"},{"net":"GND","a":[0,1],"b":[0,20],"stage":"pw"},{"net":"GND","a":[10,3],"b":[10,8],"stage":"pw"},{"net":"GND","a":[11,1],"b":[11,3],"stage":"pw"},{"net":"GND","a":[11,12],"b":[11,14],"stage":"pw"},{"net":"GND","a":[5,15],"b":[5,16],"stage":"pw"},{"net":"GND","a":[5,19],"b":[5,20],"stage":"pw"},{"net":"GND","a":[3,15],"b":[3,20],"stage":"pw"},{"net":"GND","a":[12,3],"b":[12,4],"stage":"pw"},{"net":"GND","a":[8,19],"b":[8,20],"stage":"pw"},{"net":"VN","a":[11,6],"b":[18,6],"stage":"pw"},{"net":"VN","a":[11,6],"b":[11,7],"stage":"pw"},{"net":"VN2","a":[4,18],"b":[9,18],"stage":"pw"},{"net":"VN2","a":[4,18],"b":[4,19],"stage":"pw"},{"net":"XB","a":[8,4],"b":[9,4],"stage":"pu"},{"net":"XC","a":[1,19],"b":[2,19],"stage":"pu"},{"net":"XD","a":[6,19],"b":[7,19],"stage":"pu"},{"net":"E","a":[4,10],"b":[15,10],"stage":"pe"},{"net":"E","a":[14,12],"b":[15,12],"stage":"pe"},{"net":"E","a":[14,7],"b":[15,7],"stage":"pe"},{"net":"E","a":[15,9],"b":[16,9],"stage":"pe"},{"net":"E","a":[15,7],"b":[15,12],"stage":"pe"},{"net":"E","a":[4,10],"b":[4,11],"stage":"pe"},{"net":"E","a":[9,9],"b":[9,10],"stage":"pe"},{"net":"SM","a":[2,2],"b":[10,2],"stage":"pu"},{"net":"SM","a":[1,10],"b":[2,10],"stage":"pu"},{"net":"SM","a":[2,2],"b":[2,16],"stage":"pu"},{"net":"PM","a":[15,2],"b":[17,2],"stage":"pp"},{"net":"PM","a":[13,1],"b":[15,1],"stage":"pp"},{"net":"PM","a":[15,1],"b":[15,3],"stage":"pp"},{"net":"PM","a":[13,1],"b":[13,4],"stage":"pp"},{"net":"P","a":[14,4],"b":[19,4],"stage":"pp"},{"net":"P","a":[17,3],"b":[17,4],"stage":"pp"},{"net":"P","a":[14,2],"b":[14,4],"stage":"pp"},{"net":"U","a":[1,14],"b":[1,16],"stage":"pu"},{"net":"DR","a":[7,15],"b":[8,15],"stage":"pd"},{"net":"DR","a":[7,13],"b":[8,13],"stage":"pd"},{"net":"DR","a":[7,13],"b":[7,16],"stage":"pd"},{"net":"DM","a":[6,12],"b":[9,12],"stage":"pd"},{"net":"DM","a":[6,12],"b":[6,16],"stage":"pd"},{"net":"DN","a":[8,11],"b":[9,11],"stage":"pd"},{"net":"AM","a":[13,8],"b":[14,8],"stage":"pe"},{"net":"AM","a":[13,7],"b":[13,8],"stage":"pe"},{"net":"AP","a":[11,8],"b":[12,8],"stage":"pe"},{"net":"AP","a":[12,7],"b":[12,8],"stage":"pe"},{"net":"INM","a":[6,8],"b":[9,8],"stage":"pi"},{"net":"INM","a":[6,9],"b":[8,9],"stage":"pi"},{"net":"INM","a":[6,7],"b":[6,9],"stage":"pi"},{"net":"INM","a":[9,7],"b":[9,8],"stage":"pi"},{"net":"I","a":[6,4],"b":[7,4],"stage":"pi"},{"net":"I","a":[5,5],"b":[6,5],"stage":"pi"},{"net":"I","a":[4,7],"b":[5,7],"stage":"pi"},{"net":"I","a":[7,7],"b":[8,7],"stage":"pi"},{"net":"I","a":[6,4],"b":[6,5],"stage":"pi"},{"net":"I","a":[7,4],"b":[7,7],"stage":"pi"},{"net":"I","a":[5,5],"b":[5,7],"stage":"pi"},{"net":"I","a":[4,7],"b":[4,8],"stage":"pi"},{"net":"SPW","a":[12,12],"b":[12,13],"stage":"ps"},{"net":"SPH","a":[12,15],"b":[13,15],"stage":"ps"},{"net":"PV","a":[13,12],"b":[13,13],"stage":"ps"}],"jumpers":[{"id":"W2","net":"VP","a":[10,16],"b":[10,22],"stage":"o","color":"#f08c00"},{"net":"GND","a":[10,8],"b":[10,12],"id":"W3","stage":"pw","color":"#2b2f33"}]}};
+DATA.open = DATA.bot;
+const CABLES=[
+ {id:"K3",name:"+9V: J2-+9V (bawah L23) → J5-+9V (atas B21)",from:["atas",23,21],to:["bawah",13,23],color:"#1b5e20",bend:-150},
+ {id:"K4",name:"Ground 9V: J2-GND (bawah L24) → J5-GND (atas B20)",from:["atas",23,20],to:["bawah",13,24],color:"#2b2f33",bend:-90},
+ {id:"K1",name:"u PID: J8 (atas X15) → J4-PID (bawah G10)",from:["atas",1,15],to:["bawah",18,10],color:"#c62828",bend:170}];
+const LET="ABCDEFGHIJKLMNOPQRSTUVWXY";
+const lab=(x,y)=>LET[24-x]+y;
+const P=26, OX=66, OY=32, W=OX+25*P+62, H=OY+28*P+10;
+const NS="http://www.w3.org/2000/svg";
+
+const STAGES_BOT=[
+ {id:"all",name:"Semua",c:"--ink"},
+ {id:"0",name:"0 · Daya & Rail",c:"--s0"},
+ {id:"1",name:"1 · Osilator 555",c:"--s1"},
+ {id:"2",name:"2 · Buffer",c:"--s2"},
+ {id:"3",name:"3 · Clamper",c:"--s3"},
+ {id:"4",name:"4 · Penguat",c:"--s4"},
+ {id:"5",name:"5 · Komparator PWM",c:"--s5"},
+ {id:"6",name:"6 · Ke Modul L298N",c:"--s6"},
+ {id:"7",name:"7 · Input PID",c:"--s7"}];
+const STAGES_TOP=[
+ {id:"all",name:"Semua",c:"--ink"},
+ {id:"w",name:"Daya 9V",c:"--s0"},
+ {id:"o",name:"Optocoupler EE-SX112",c:"--s2"},
+ {id:"n",name:"Referensi TACH−",c:"--s4"},
+ {id:"c",name:"Charge pump",c:"--s1"},
+ {id:"v",name:"Output PV",c:"--s5"},
+ {id:"pw",name:"PID 0 · Daya",c:"--s0"},
+ {id:"ps",name:"PID 1 · SP & PV",c:"--s2"},
+ {id:"pe",name:"PID 2 · Error",c:"--s5"},
+ {id:"pp",name:"PID 3 · P",c:"--s4"},
+ {id:"pi",name:"PID 4 · I",c:"--s1"},
+ {id:"pd",name:"PID 5 · D",c:"--s3"},
+ {id:"pu",name:"PID 6 · Σ & u",c:"--s6"}];
+const STAGES_GAB=[{id:"all",name:"Semua",c:"--ink"}];
+const INFO_TOP={
+ all:{t:"Setengah atas: close loop (sensor + PID)",d:"Baris 20–28: sensor RPM (EE-SX112 + LM2917N), keluarannya PV. Baris 1–19: PID (IC5 + IC6) yang membandingkan PV dengan SP dan mengeluarkan u ke J4 papan open loop lewat K1. +9 V dan GND diambil dari open loop lewat K3, K4; −9 V dari baterai 9 V ke J11 dan J13. Jumper: W2 (+9V opto) dan W3 (GND PID).",
+  steps:["Pasang soket DIP-14 IC7 dulu: pin 1 di K24, pin 14 di K21 (notch di sisi kolom K).","Buat bingkai GND dan jalur daya (tab Daya), lalu ukur: B21–B20 tidak boleh 0 Ω.","Rakit blok optocoupler dan cek TP8 sebelum IC7 dipasang.","Rakit referensi TACH−, charge pump, lalu output PV.","Rakit PID tahap demi tahap (tab PID 0–6), uji tiap tahap dengan DC.","Pasang IC7, sambung K3–K4, lalu kalibrasi VR16 sampai TP9 = 5,00 V saat VR4 maksimum.","Sambung B24 (J10) → L13 (J9) dan K1 (X15 → G10 bawah), pindahkan cap JP1 ke F14–F15."]},
+ w:{t:"Daya 9 V",d:"+9 V masuk di J5 dan lewat R50 150 Ω ke pin 9 (V+) dan pin 8 (kolektor). Zener internal LM2917N menahan pin 9 di ≈ 7,6 V. J7 (+5 V) dihapus: LED dan pull-up opto sekarang ambil +9 V langsung dari J5. Pin 12 ke GND.",
+  steps:["J5 header 2 pin: B21 = +9V, B20 = GND.","J7, kabel K5/K6, dan jalur 5 V lama (R25–O25, O22–O25, R25–R27, Q27–Q28) <b>dibuang</b>.","R50 150 Ω di F20–F16, C35 100 nF di E20–E19 (sedekat mungkin ke pin 9).","Pin 8 dan 9 (E21, F21) disatukan. Pin 12 (I21) ke rail GND.","Uji tanpa IC: F21 terhadap GND harus ≈ 9 V."]},
+ o:{t:"Optocoupler slot EE-SX112 (dari +9 V)",d:"LED menyala lewat R52 dari +9 V. Saat celah terbuka, phototransistor menarik SIG ke GND. Saat disk menutup celah, R53 menarik SIG ke +9 V. Hasilnya pulsa kotak 0–9 V ke pin 1 (TACH+); LM2917N aman sampai 28 V di pin ini.",
+  steps:["J6 header 4 pin: O27 = K, N27 = A, M27 = C, L27 = E.","K ke GND lewat O27–O28 (bingkai GND baris 28).","R52 <b>470 Ω</b> di N26–N22: I_LED = (9 − 1,2) / 470 ≈ 16,6 mA. Jangan pakai 220 Ω di 9 V (≈ 35 mA, terlalu panas).","R53 <b>22 kΩ</b> di M26–M22. Dengan 10 kΩ di 9 V, phototransistor yang lemah bisa tidak turun di bawah 2,1 V.","Daya +9 V: jalur O22–M22 (kaki atas R52 dan R53), jumper berisolasi <b>W2 O22 ↔ O16</b> melompati GND baris 20, lalu jalur O16–G16 ke kaki R54 (+9V).","TP8 di L25.","Uji: putar disk pelan dengan tangan. TP8 harus berganti antara < 0,5 V dan ≈ 9 V."]},
+ n:{t:"Referensi TACH− (pin 11)",d:"Pembagi R54/R55 memberi ≈ 2,1 V ke pin 11. Komparator input LM2917N membandingkan pulsa di pin 1 dengan tegangan ini, jadi pulsa 0–9 V pasti melewati ambangnya.",
+  steps:["R54 33 kΩ di G20–G16 (dari +9V).","R55 10 kΩ di H20–L20 (ke GND).","Pin 11 (H21) tersambung ke H20.","H21 dan I21 bersebelahan: pin 11 dan GND. Jangan sampai timahnya menyeberang.","Uji: H21 ≈ 2,1 V terhadap GND."]},
+ c:{t:"Charge pump C33 + VR16",d:"Setiap pulsa, C33 memompa muatan ke VR16. Arus rata-ratanya sebanding frekuensi, lalu C34 meratakan tegangannya. PV = V(pin 9) × f × C33 × VR16.",
+  steps:["C33 10 nF di J26–J28 (pin 2 → GND).","Badan VR16 menghadap baris 28, karena kaki R49 di D26 persis di atas kaki 3 VR16.","Pin 3 dan 4 (I24, H24) disatukan.","C34 1 µF film di H26–H28.","VR16 trimpot 200 kΩ: F27 = pin 1, E27 = W, D27 = pin 3. W dan pin 3 ke GND.","Mulai dengan VR16 di tengah (≈ 100 kΩ), baru kalibrasi."]},
+ v:{t:"Output PV",d:"Pin 5 (emitter) dan pin 10 (IN−) disatukan, sehingga op-amp internal menjadi follower. R49 10 kΩ menjadi beban emitter. PV keluar di TP9 dan J10, lalu dikabel pendek ke J9 (L13) di bagian PID.",
+  steps:["Pin 5 (G24) dan pin 10 (G21) disatukan.","R49 10 kΩ di D22–D26.","TP9 di L21. J10: B24 = PV, B25 = GND.","Kalibrasi: VR4 maksimum, ukur frekuensi TP8, lalu setel VR16 sampai TP9 = 5,00 V.","Ke PID: kabel pendek dari B24 (J10) ke L13 (J9)."]},
+ pw:{t:"PID · daya, rail, GND",d:"PID ada di baris 1–19 setengah atas, di atas sensor. +9 V diambil langsung dari jalur +9 V sensor (baris 16), GND dari bingkai GND sensor, jadi tidak perlu kabel +9 V/GND baru. Yang baru hanya −9 V dari baterai 9 V ke J11 (IC5) dan J13 (IC6). Kedua IC <b>diputar 180°</b>: pin 1 IC5 di K4, pin 1 IC6 di R16, notch keduanya menghadap kolom A.",
+  steps:["Soket IC5: pin 1 di <b>K4</b>, pin 7 di Q4, pin 8 di Q7, pin 14 di K7. Soket IC6: pin 1 di <b>R16</b>, pin 7 di X16, pin 8 di X19, pin 14 di R19.","+9V IC5: N4–N5 (bawah soket), N5 → C5, turun kolom C sampai C16 (jalur +9V sensor). +9V IC6: U16–U17, U17 → Q17, Q17–Q16, Q16 → O16.","−9V: J11 di H6 → G6 → N6 → N7 (pin 11 IC5). J13 di P18 → U18 → U19 (pin 11 IC6). Sumber −9 V = baterai 9 V: kutub − (kabel hitam snap) dicabang 2 ke H6 dan P18, kutub + (kabel merah snap) ke B25 (pin GND J10). Merah ke GND memang benar, karena kutub + baterai menjadi titik 0 V.","GND: O4–O7 bawah soket, O3–M3, N1–N3, baris 1 (N1 → Y1), kolom Y (Y1 → Y20), Y20 → S20 masuk bingkai GND sensor. IC6: V15–V20, V15–T15–T16, T19–T20. Kolom A: A5 → A20 (J5 GND).","Jumper berisolasi <b>W3 O8 ↔ O12</b> (GND untuk R44 dan J12, melompati jalur E baris 10).","Op-amp cadangan: IC5 P4–Q4, IC6 X19–W19 dan S19–R19 disatukan timah.","C21 B5–A5, C22 G5–G6, C24 Q18–Q19.","Uji tanpa IC: N4 ≈ +9 V, N7 ≈ −9 V, U16 ≈ +9 V, U19 ≈ −9 V terhadap GND."]},
+ ps:{t:"PID · SP (VR15) dan PV",d:"SP dari +9V → R48 82k → VR15 100k → GND, maksimum ≈ 4,9 V. PV masuk lewat kabel pendek dari J10 ke J9.",
+  steps:["J12 (header 3 pin) tegak: <b>M13 = wiper VR15</b>, <b>M14 = kaki 3 (GND)</b>, <b>M15 = kaki 1 (atas)</b>.","R48 82 kΩ di L15–H15, kaki H15 turun ke H16 (+9V sensor).","J9 (header 1 pin) di <b>L13</b> = PV. Kabel pendek dari J10 (B24) ke L13.","SP bisa diukur langsung di M13.","Uji: putar VR15, M13 bergerak 0 → ≈ 4,9 V."]},
+ pe:{t:"PID · error e = SP − PV (IC5D)",d:"Penguat diferensial gain 1 di pin 12–14 IC5. R41–R44 berdiri vertikal di bawah IC5, jalur E (baris 10) lewat di bawah badannya.",
+  steps:["R44 (AP → GND) N8–N12, R43 (AP → SP) M8–M12, R42 (AM → PV) L8–L12, R41 (AM ↔ E) K8–K12.","N8 bersebelahan dengan N7 (−9V). Jangan sampai terhubung timah.","Jalur E: K7–J7, J7–J12, baris 10 J10 → U10, U10–U11. P9–P10 ke VR12.","TP11 di I9 = e.","Uji: L13 (PV) dihubung ke GND, TP11 sama dengan M13 (SP)."]},
+ pp:{t:"PID · P (IC5A)",d:"Inverting gain VR11/R31 di pin 1–3 IC5. R31 menyeberangi rail baris 5–6. Output P negatif: P = −Kp·e.",
+  steps:["R31 10k di J7 (E) – J3 (PM).","VR11 trimpot 50k tegak: H2 = kaki 1 (PM), H3 = wiper, H4 = kaki 3 (P).","Jalur PM: L4 → L1 → J1 → J3, J2 → H2. Jalur P: K4 → F4 (lewat bawah badan R31), K4 → K2.","R34 (P → Σ) di K2–O2, badannya menyeberangi GND N1–N3. TP12 di F4.","Uji: e = 1 V, VR11 di 10 kΩ → TP12 ≈ −1 V."]},
+ pi:{t:"PID · I (IC5C)",d:"Integrator VR12 + C31 di pin 8–10 IC5. Cap JP2 terpasang = C31 dikosongkan (I = 0).",
+  steps:["VR12 trimpot 100k mendatar: P9 = kaki 1 (E), Q9 = wiper, R9 = kaki 3 (INM).","C31 <b>elco 4,7 µF 50 V</b> di U8–S8: <b>kaki + (panjang) di S8</b> (sisi INM, pin 9), <b>kaki − (strip) di U8</b> (sisi output I, pin 8). Lebarkan kakinya sedikit (jarak 2 lubang) dan rebahkan badannya menjauhi JP2 (T7–S7) supaya jumper cap masih bisa dicabut. Elco aman di sini karena output I selalu negatif saat motor berputar.","Setel VR12 ≈ <b>47 kΩ</b> (ukur P9–Q9, power mati). Ki = 1/(47k × 4,7 µF) ≈ 4,5 /s.","R38 (I → Σ) S5–W5. TP13 di R4.","Uji: cap JP2 terpasang → TP13 = 0. Lepas cap dengan e = 1 V → TP13 turun pelan."]},
+ pd:{t:"PID · D (IC6A)",d:"Differensiator di pin 1–3 IC6. E turun lewat R47, C32 elco 10 µF (polar), feedback VR13.",
+  steps:["R47 10k U11 (E) – Q11 (DN). C32 <b>elco 10 µF 50 V</b> (Ø 5 mm): <b>kaki + (panjang) di P11</b> (sisi R47), <b>kaki − (strip putih) di P12</b> (sisi IC6/VR13). Jangan terbalik. Kalau mepet VR13, rebahkan badannya ke arah kolom O.","VR13 trimpot 100k mendatar: S13 = kaki 1 (DM), R13 = wiper, Q13 = kaki 3 (DR).","Jalur DM: S16 → S12 → P12. Jalur DR: R16 → R13.","R35 (D → Σ) R15–W15, badannya melewati GND T15–V15. TP14 di Q15.","Uji: putar VR15 cepat → TP14 melonjak sesaat lalu kembali ≈ 0."]},
+ pu:{t:"PID · Σ dan output u (IC6B)",d:"Penjumlah inverting di pin 5–7 IC6: u = −(P + I + D). Jalur SM (Σ−) di kolom W mengumpulkan R34, R38, R35.",
+  steps:["Jalur SM: O2 → W2, turun kolom W sampai W16 (pin 6 IC6). X10–W10 ke R36.","R36 (SM ↔ u) X10–X14. Jalur u: X16 → X14.","J8 (header 1 pin) di <b>X15</b> = u. Kabel K1 ke J4 papan open loop (G10).","Uji: TP12 + TP13 + TP14 ≈ −u di X15."]},
+};
+const TP_TOP={
+ TP8:{c:"#2fb344",node:"SIG, kolektor EE-SX112 (pin 1)",exp:"Pulsa kotak 0 ↔ 9 V, frekuensinya naik saat motor makin cepat",sc:"5 V/div · 2 ms/div · DC"},
+ TP9:{c:"#12a58f",node:"PV, pin 5/10 LM2917N",exp:"DC 0 – 5,00 V, naik sebanding RPM. Ripple kecil dari C34",sc:"1 V/div · DC"},
+ TP11:{c:"#e0262b",node:"e, pin 14 IC5",exp:"SP − PV. ≈ 0 V saat close loop sudah steady",sc:"1 V/div · DC"},
+ TP12:{c:"#2155d6",node:"P, pin 1 IC5",exp:"−Kp·e (tanda negatif)",sc:"1 V/div · DC"},
+ TP13:{c:"#e8871e",node:"I, pin 8 IC5",exp:"−Ki∫e: miring selama e ≠ 0, menetap saat e = 0",sc:"2 V/div · 500 ms/div · DC"},
+ TP14:{c:"#d61f8a",node:"D, pin 1 IC6",exp:"−Kd·de/dt: hanya lonjakan saat SP/PV berubah",sc:"1 V/div · 100 ms/div · DC"}};
+const INFO_GAB={all:{t:"Open loop + close loop digabung",d:"Setengah bawah = open loop (PWM generator), setengah atas = close loop (sensor RPM di baris 20–28, PID di baris 1–19). Penghubungnya K3/K4 (+9 V, GND) dan K1 (u dari J8 ke J4). −9 V dari baterai 9 V ke J11 dan J13 (kutub + baterai ke GND B25).",
+  steps:["Pastikan open loop sudah jalan: duty TP6 bergerak 0 → 100% saat VR4 diputar.","Rakit dan uji setengah atas tanpa IC7.","Pasang K3, K4 (daya) dan K1 (u PID → J4) sesuai tabel di bawah.","Pasang IC7, nyalakan, putar VR4 maksimum, lalu setel VR16 sampai TP9 = 5,00 V.","Untuk close loop: kabel pendek B24 (J10) → L13 (J9), K1 dari X15 (J8) → G10 (J4), −9V ke J11 dan J13, lalu cap JP1 dipindah ke F14–F15."]}};
+const INFO={
+ all:{t:"Seluruh rangkaian",d:"Alur sinyal: sawtooth 555 → buffer (op-amp pin 12–14) → clamper C2/D1 → penguat (pin 1–3) → komparator PWM (pin 5–7) → zener 4V7 → J3 → ENA modul L298N. Rail GND di baris 11 membagi papan jadi dua blok: bagian atas untuk 5 V (555, VR1, VR2), bagian bawah untuk LM324 dengan 9 V. Hanya ada satu jumper, yaitu RESET 555.",
+  steps:["Pasang soket DIP8 dan DIP14 dulu. IC dimasukkan paling akhir.","Tahap 0: buat rail dan bingkai GND, lalu pasang J1, J2, dan C8.","Tahap 1: rakit 555. Pasang NE555, beri 5 V, lalu cek TP1.","Tahap 2–5: rakit bagian LM324. Pasang LM324, beri 9 V di J2, lalu cek TP2, TP3, TP4, TP7, dan TP5 berurutan.","Tahap 6: pasang R7 (Rseri), D2, dan J3. Cek TP6, baru sambungkan kabel female ke modul L298N.","Tahap 7: pasang J4, R8, D3, R9, dan JP1 sekalian, supaya PCB siap dipakai untuk close loop tanpa bongkar solder."]},
+ "0":{t:"Daya & rail",d:"Rail 5 V di baris 1 (Y1–A1). Rail GND di baris 11 (Y11–B11), plus bingkai GND di kolom Y (Y2–Y24), baris 24 (Y24–A24), dan kolom A (A14–A24). Suplai 9 V masuk di J2 yang letaknya tepat di bawah pin 4 LM324, jadi jalurnya lurus L17–L23 tanpa jumper.",
+  steps:["Untuk rail dan bingkai, pakai kawat tembaga telanjang atau kaki resistor sisa. Letakkan di atas pad sisi solder, lalu solder tiap 2–3 lubang.","J1 (pin header 2) di Y1 = +5V dan Y2 = GND.","J2 (pin header 2) di L23 = +9V dan L24 = GND (L24 ada di rail bawah).","Jalur 9 V lurus dari L17 (pin 4 LM324) ke L23. C8 100 nF di M23–M24.","Pin GND untuk jepit probe: V11, I11, dan H24."]},
+ "1":{t:"Osilator sawtooth NE555",d:"Pin 2, 6, dan 7 disatukan ke C1, sehingga C1 terisi lewat VR1+R1 lalu dibuang cepat oleh pin 7. Hasilnya ramp 1,67–3,33 V. VR1 ≈ 19 kΩ memberi f ≈ 50 Hz. Pin 5 diberi 10 nF ke GND.",
+  steps:["NE555 tegak dengan pin 1 di W4 (notch ke atas). Pin 1–4 di W4–W7, pin 8–5 di T4–T7.","Jalur TIM: bawah soket W5–T5, turun kolom S (S6–S10), lalu lajur baris 10 (S10–N10) ke R2.","RESET (pin 4) ke 5 V lewat jumper W1: X7 ke X1, lurus di tepi papan. Ini satu-satunya jumper.","C4 100 nF di W3–U3, C3 10 nF di T8–T10.","VR1 multiturn 3296W di O2–O4, R1 di S6–O6, C1 film di O9–O11.","Uji: pasang NE555 saja, beri 5 V, lalu probe TP1 (Q9)."]},
+ "2":{t:"Buffer (LM324 pin 12–13–14)",d:"Voltage follower dengan gain 1. Beban clamper tidak membebani C1, sehingga frekuensi tidak bergeser. R2 berdiri vertikal di M9–M13 dan menyeberangi rail GND baris 11: badannya di sisi komponen, rail di sisi solder.",
+  steps:["LM324 dipasang mendatar dengan notch menghadap kiri (arah kolom Y) di Tampak Komponen. Pin 1 di O17, pin 14 di O14.","R2 10k di M9 (dari TIM) sampai M13, lalu bridge ke pin 12 (M14).","Bridge pin 13–14 (N14–O14), lalu ke kiri sampai Q14 (kaki + C2).","Uji: TP2 (P13) harus identik dengan TP1."]},
+ "3":{t:"Clamper C2–D1–R3–VR2",d:"C2 memblok DC. D1 menahan titik terendah sinyal di ≈ V(VR2) − 0,7 V. R3 10k menjadi jalur bleed (τ = 0,47 s ≫ 20 ms). Node clamp masuk ke pin 3 lewat bawah soket.",
+  steps:["C2 elco: kaki + di Q14, kaki − di Q15.","Jalur CLAMP lewat bawah soket baris 15 (Q15–M15), turun ke pin 3 (M17), dan ke kiri sampai T15.","D1: anoda di R8, katoda (gelang) di R12, menyeberangi rail GND baris 11.","VR2 multiturn di J7–J9. Wiper ke D1 lewat lajur baris 8 (J8–R8).","R3 di T15–T11 (kaki atas di rail GND).","Uji: TP3 (S14) menampilkan sawtooth yang terangkat."]},
+ "4":{t:"Penguat non-inverting (LM324 pin 1–2–3)",d:"Gain = 1 + R6/R_VR3. VR3 dipasang sebagai rheostat. Atur agar puncak TP4 di bawah 5 V supaya rentang VR4 menghasilkan duty 0–100%.",
+  steps:["FB (pin 2) keluar lewat bawah soket baris 16 (N16), lalu ke kiri sampai V16.","R6 vertikal di S16–S20.","VR3 multiturn di V16–V18. Pin 1 ke FB, wiper dan pin 3 ke GND.","AMP (pin 1): O17 ke Q17, turun kolom Q sampai Q21, lalu ke kanan sampai N21.","Uji: TP4 (P20) menampilkan ramp yang dikuatkan tanpa terpotong."]},
+ "5":{t:"Komparator PWM (LM324 pin 5–6–7)",d:"Ramp masuk ke pin 6 (−) lewat R4. REF masuk ke pin 5 (+) dari JP1: posisi VR4 untuk open loop, posisi PID untuk close loop. Output HIGH saat REF > ramp. Op-amp pin 8–10 tidak dipakai dan dimatikan.",
+  steps:["R4 di N21–J21, menyeberangi jalur 9 V kolom L (badan di atas).","CMPN di kolom J (J17–J21) ke pin 6.","VR4 pot panel 16 mm di tepi kanan (A10/A12/A14), poros menghadap keluar. Wiper A12 lewat baris 12 (A12–F12) ke JP1 pin VR4 (F13).","JP1 (header 3 pin + jumper cap) di F13 (VR4), F14 (REF), dan F15 (PID).","REF: F14 → H14, turun kolom H, masuk bawah soket baris 16 (H16–K16), lalu ke pin 5 (K17). TP7 (G13) mengukur REF setelah selektor.","Op-amp tak terpakai: pin 10 ke GND (K14–L14), pin 8 dan 9 disatukan (I14–J14).","R5 1k di F17–F21 ke bingkai GND.","Uji (JP1 posisi VR4): TP7 berupa DC 0–5 V, TP5 (H18) berupa PWM 0 ↔ ~7 V."]},
+ "6":{t:"Antarmuka ke modul L298N",d:"Rseri 1k dan zener 4V7 membatasi PWM ke ~4,7 V, aman untuk input logika L298N (maks 7 V, HIGH ≥ 2,3 V). J3 memberi ENA dan GND. IN1 diambil dari pin 5 V di modul sendiri.",
+  steps:["R7 (Rseri 1k) di D17–D21. Zener D2: katoda (gelang) di B21, anoda di B18.","J3 (pin header 3) di D23 = ENA, C23 = IN2 (GND), B23 = GND.","Uji TP6 (E22): harus PWM ~0 ↔ 4,7 V sebelum modul disambung.","Di modul, LEPAS jumper cap ENA. Pin 5 V bekas jumper itu disambung ke IN1 memakai kabel female-female.","J3-ENA → pin ENA (pin yang bukan 5 V), J3-IN2 → IN2, J3-GND → terminal GND modul.","12 V ke terminal modul, motor ke OUT1–OUT2. Untuk membalik arah, tukar kabel motor."]}
+,
+ "7":{t:"Input PID untuk close loop",d:"J4 menerima output Σ PID dari rangkaian modul. R8 membatasi arus, D3 memblok tegangan negatif (PID memakai ±9 V), dan R9 menjadi pull-down. Hasilnya REF ≈ 0,91 · (u − 0,6 V), selalu 0 … ~6,5 V, aman untuk LM324. Untuk open loop, bagian ini boleh dipasang dan dibiarkan kosong.",
+  steps:["J4 (pin header 2) di G10 = PID dan G11 = GND (G11 ada di rail).","R8 1k vertikal di G9–G5.","Jalur G5–E5, lalu turun kolom E sampai E9.","D3 1N4007: anoda di E9, katoda (gelang) di E13, menyeberangi rail GND baris 11 dan jalur VR4W baris 12. Badan diode ada di sisi komponen.","PIDREF: E13–E15, lalu ke F15 (JP1 pin PID). Dari E16, R9 10k ke A16 (bingkai GND).","Open loop: jumper cap JP1 di F13–F14. Close loop: pindahkan ke F14–F15."]}
+};
+const TP={
+ TP1:{c:"#2fb344",node:"TIM (C1/pin 2-6-7)",exp:"Sawtooth 1,67 → 3,33 V, periode 20 ms (50 Hz)",sc:"1 V/div · 5 ms/div · DC"},
+ TP2:{c:"#12a58f",node:"Output buffer (pin 14)",exp:"Identik dengan TP1",sc:"1 V/div · 5 ms/div · DC"},
+ TP3:{c:"#d61f8a",node:"Node clamp (pin 3)",exp:"Sawtooth ~1,6 Vpp, ≈ 0,2 → 1,8 V (minimum = wiper VR2 − ~0,65 V)",sc:"1 V/div · 5 ms/div · DC"},
+ TP4:{c:"#2155d6",node:"Output penguat (pin 1)",exp:"Ramp ≈ 0,5 → 4,4 V (gain ≈ 2,4), tidak terpotong",sc:"2 V/div · 5 ms/div · DC"},
+ TP7:{c:"#e0262b",node:"Vref VR4 (pin 5)",exp:"DC 0 – 5 V sesuai putaran VR4",sc:"1 V/div · DC"},
+ TP5:{c:"#e8871e",node:"Output komparator (pin 7)",exp:"Kotak 50 Hz, 0 ↔ ~7 V, duty diatur VR4",sc:"2 V/div · 5 ms/div · DC"},
+ TP6:{c:"#9c2b1f",node:"ENA ke L298N (J3)",exp:"Kotak 50 Hz, 0 ↔ ~4,5 V (terpotong zener)",sc:"2 V/div · 5 ms/div · DC"}
+};
+const SVAR=s=>getComputedStyle(document.documentElement).getPropertyValue(s).trim();
+
+// ---------- state ----------
+let stage="all", view="comp", lview="close";
+try{const v=localStorage.getItem("sk_view"); if(v) view=v; const lv=localStorage.getItem("sk_lview"); if(["open","close","gabung"].includes(lv)) lview=lv;}catch(e){}
+const GAP=46;
+function netMaps(d){ if(d._pn) return; d._pn={}; d._pl={};
+  d.comps.forEach(c=>c.pins.forEach(([x,y,n,l])=>{d._pn[x+","+y]=n; d._pl[x+","+y]=c.id+"."+l;}));
+  d.jumpers.forEach(j=>[j.a,j.b].forEach(p=>{d._pn[p]=j.net; d._pl[p]=j.id;}));
+  d.runs.forEach(r=>{const[a,b]=[r.a,r.b]; if(a[0]===b[0]) for(let y=Math.min(a[1],b[1]);y<=Math.max(a[1],b[1]);y++) d._pn[a[0]+","+y]=r.net; else for(let x=Math.min(a[0],b[0]);x<=Math.max(a[0],b[0]);x++) d._pn[x+","+a[1]]=r.net;}); }
+const dataFor=lv=>lv==="open"?DATA.open:lv==="close"?DATA.top:DATA.bot;
+let D=dataFor(lview);
+
+// ---------- helpers ----------
+let TF={ox:OX,oy:OY,fx:false,fy:false};
+const X=x=>TF.ox+(TF.fx?24-x:x)*P+P/2, Y=y=>TF.oy+(TF.fy?28-y:y-1)*P+P/2;
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e;}
+function txt(s,x,y,attrs,parent){const t=el("text",Object.assign({x,y},attrs),parent); t.textContent=s; return t;}
+const MULTI={IC7:["w","o","n","c","v"],IC2:["2","3","4","5"],IC5:["pw","pe","pp","pi"],IC6:["pw","pu","pd"]};
+const stagesOf=c=>MULTI[c.id]||[c.stage];
+function cls(stList){ if(stage==="all") return ""; if(stList.includes(stage)) return ""; if(stList.includes("0")||stList.includes("w")||stList.includes("pw")) return "half"; return "dim";}
+const NETCOL={"5V":"#d32f2f","9V":"#1b5e20","GND":"#2b2f33","TIM":"#1f6fd1","R1A":"#64a8ff","CV":"#00a3c4","BUF":"#0f8a78","BUFIN":"#7cb342",
+ "CLAMP":"#c2185b","VR2W":"#f06292","FB":"#7b3fe4","AMP":"#d4a100","CMPN":"#8d6e63","REF":"#e0262b","PWM":"#e8871e","U3":"#9e9e9e","EN":"#8e1d12","VR4W":"#ff6f6f","PIDIN":"#00838f","PIDA":"#26a69a","PIDREF":"#006064",
+ "VP":"#f08c00","VN":"#1e88e5","SPH":"#9e9d24","SPW":"#2fb344","PV":"#12a58f","XA":"#9e9e9e","XC":"#9e9e9e","XD":"#9e9e9e","V5":"#d32f2f","VT":"#8d6e63","E":"#e0262b","AM":"#ef5350","AP":"#ff8a65","SPW":"#7b3fe4",
+ "PM":"#1565c0","PN":"#42a5f5","CM":"#00897b","P":"#2155d6","INM":"#6a1b9a","IN":"#ab47bc","IIM":"#8e24aa","I":"#e8871e",
+ "DN":"#d61f8a","DM":"#f06292","DR":"#c2185b","SM":"#5d4037","S":"#795548","UM":"#9c2b1f","U":"#c62828",
+ "TIN":"#0277bd","CP1":"#26a69a","CP2":"#00838f","PVR":"#12a58f","PVS":"#2fb344","SIG":"#558b2f","LEDA":"#9e9d24","TREF":"#6a1b9a"};
+const STG=()=>lview==="close"?STAGES_TOP:lview==="gabung"?STAGES_GAB:STAGES_BOT;
+const INF=()=>lview==="close"?INFO_TOP:lview==="gabung"?INFO_GAB:INFO;
+const TPS=()=>lview==="close"?TP_TOP:TP;
+const SCOL={"0":"--s0","1":"--s1","2":"--s2","3":"--s3","4":"--s4","5":"--s5","6":"--s6","7":"--s7","w":"--s0","s":"--s2","e":"--s5","p":"--s4","i":"--s1","d":"--s3","u":"--s6","o":"--s2","n":"--s4","c":"--s1","v":"--s5","pw":"--s0","ps":"--s2","pe":"--s5","pp":"--s4","pi":"--s1","pd":"--s3","pu":"--s6"};
+const stageColor=s=>SVAR(SCOL[s]||"--ink");
+
+function drawBoard(){
+  const svg=document.getElementById("svg"); svg.innerHTML="";
+  const show={br:lBr.checked,jp:lJp.checked,lb:lLb.checked};
+  const sold=view==="sold";
+  if(lview!=="gabung"){
+    svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    drawHalf(svg,D,{ox:OX,oy:OY,fx:sold,fy:false},show,"",true);
+  } else {
+    const H2=OY+28*P+GAP+28*P+14;
+    svg.setAttribute("viewBox",`0 0 ${W} ${H2}`);
+    el("rect",{x:OX-40,y:0,width:25*P+60,height:H2,fill:sold?"#c98f4f":"#cfa26a",rx:10},svg);
+    const my=OY+28*P+GAP/2;
+    el("rect",{x:OX-40,y:my-GAP/2+6,width:25*P+60,height:GAP-12,fill:"rgba(60,30,5,.12)"},svg);
+    txt("strip tengah papan (tulisan huruf)",OX+12.5*P,my+4,{"text-anchor":"middle","font-size":11,fill:"#3b2410","font-weight":600,opacity:.7},svg);
+    const tTop={ox:OX,oy:OY,fx:!sold,fy:true}, tBot={ox:OX,oy:OY+28*P+GAP,fx:sold,fy:false};
+    drawHalf(svg,DATA.top,tTop,show,"atas",false);
+    drawHalf(svg,DATA.bot,tBot,show,"bawah",false);
+    // kabel antar-setengah
+    if(show.jp){ const kg=el("g",{},svg);
+      CABLES.forEach(k=>{ TF=k.from[0]==="atas"?tTop:tBot; const ax=X(k.from[1]),ay=Y(k.from[2]); TF=k.to[0]==="atas"?tTop:tBot; const bx=X(k.to[1]),by=Y(k.to[2]);
+        const g=el("g",{class:sold?"ghost":""},kg); const cx=(ax+bx)/2+k.bend, cy=(ay+by)/2;
+        el("path",{d:`M${ax},${ay} Q${cx},${cy} ${bx},${by}`,fill:"none",stroke:"#111",opacity:.35,"stroke-width":7,"stroke-linecap":"round"},g);
+        el("path",{d:`M${ax},${ay} Q${cx},${cy} ${bx},${by}`,fill:"none",stroke:k.color,"stroke-width":5,"stroke-linecap":"round"},g);
+        [[ax,ay],[bx,by]].forEach(([x,y])=>el("circle",{cx:x,cy:y,r:5,fill:k.color,stroke:"#fff","stroke-width":1.5},g));
+        if(show.lb){const lx=0.25*ax+0.5*cx+0.25*bx, ly=0.25*ay+0.5*cy+0.25*by, w=k.id.length*7+10;
+          el("rect",{x:lx-w/2,y:ly-9,width:w,height:17,rx:4,fill:k.color,stroke:"#fff","stroke-width":1},g); txt(k.id,lx,ly+4,{"text-anchor":"middle","font-size":11,fill:"#fff","font-weight":700},g);}
+        el("title",{},g).textContent=`${k.id}: ${k.name}`; });
+    }
+  }
+}
+function drawHalf(svg,data,t,show,tag,single){
+  const D0=D; D=data; TF=t; netMaps(data);
+  const sold=view==="sold";
+  const top=Math.min(Y(1),Y(28))-P/2, bot=Math.max(Y(1),Y(28))+P/2;
+  if(single) el("rect",{x:OX-40,y:0,width:25*P+60,height:H,fill:sold?"#c98f4f":"#cfa26a",rx:10},svg);
+  el("rect",{x:OX-4,y:top-4,width:25*P+8,height:28*P+8,fill:"none",stroke:"rgba(60,30,5,.35)","stroke-dasharray":"4 4",rx:4},svg);
+  const lg=el("g",{"font-size":11,fill:"#3b2410","font-weight":600},svg);
+  const nearStrip=t.fy? bot+14 : top-10;
+  for(let x=0;x<25;x++){ txt(LET[24-x],X(x),nearStrip,{"text-anchor":"middle"},lg); }
+  for(let r=1;r<=28;r++) txt(r,OX-8,Y(r)+4,{"text-anchor":"end"},lg);
+  if(tag) txt(tag==="atas"?"SETENGAH ATAS · close loop: sensor RPM + PID":"SETENGAH BAWAH · open loop (PWM)",OX+12.5*P,t.fy?top-10:bot+16,{"text-anchor":"middle","font-size":11.5,fill:"#3b2410","font-weight":700,"letter-spacing":".06em"},svg);
+  // pads
+  const pg=el("g",{},svg);
+  for(let x=0;x<25;x++)for(let y=1;y<=28;y++){
+    const cx=X(x),cy=Y(y);
+    if(view==="sold"){el("circle",{cx,cy,r:P*0.36,fill:"#d99a52",stroke:"#9c5f22","stroke-width":1},pg); el("circle",{cx,cy,r:P*0.13,fill:"#3a220c"},pg);}
+    else{el("circle",{cx,cy,r:P*0.3,fill:"#c38c52",stroke:"#a8733d","stroke-width":.8},pg); el("circle",{cx,cy,r:P*0.13,fill:"#2e1b09"},pg);}
+  }
+  function drawBridges(){
+  if(!show.br) return;
+    const bg=el("g",{},svg);
+    D.runs.forEach(r=>{
+      const g=el("g",{class:cls([r.stage])},bg);
+      const a={x:X(r.a[0]),y:Y(r.a[1])}, b={x:X(r.b[0]),y:Y(r.b[1])}, col=NETCOL[r.net]||"#888";
+      if(view==="sold"){
+        el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#5d6166","stroke-width":P*0.5,"stroke-linecap":"round"},g);
+        el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#e4e7ea","stroke-width":P*0.36,"stroke-linecap":"round"},g);
+        el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:col,"stroke-width":2.6,"stroke-linecap":"round"},g);
+      }else{
+        el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#ffffff","stroke-width":6,"stroke-linecap":"round",opacity:.75},g);
+        el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:col,"stroke-width":3.2,"stroke-linecap":"round","stroke-dasharray":"6 3"},g);
+      }
+      el("title",{},g).textContent=`Jalur solder ${r.net}: ${lab(...r.a)} → ${lab(...r.b)}`;
+    });
+    if(show.lb){ // label net di ujung ruas sinyal terpanjang
+      const best={}; D.runs.forEach(r=>{if(["5V","GND"].includes(r.net))return; const n=Math.abs(r.a[0]-r.b[0])+Math.abs(r.a[1]-r.b[1]); if(!best[r.net]||n>best[r.net].n) best[r.net]={r,n};});
+      Object.values(best).forEach(({r})=>{const g=el("g",{class:cls([r.stage])},bg); const mx=(X(r.a[0])+X(r.b[0]))/2, my=(Y(r.a[1])+Y(r.b[1]))/2, t=r.net==="9V"?"+9V":r.net, w=t.length*6.2+8;
+        el("rect",{x:mx-w/2,y:my-7,width:w,height:13,rx:6.5,fill:NETCOL[r.net],stroke:"#fff","stroke-width":1},g); txt(t,mx,my+3.5,{"text-anchor":"middle","font-size":8.5,fill:"#fff","font-weight":700},g);});
+    }
+  }
+  if(view==="sold") drawBridges();
+  // jumpers
+  if(show.jp){
+    const jg=el("g",{},svg);
+    D.jumpers.forEach(j=>{
+      const g=el("g",{class:cls([j.stage])+(view==="sold"?" ghost":"")},jg);
+      const ax=X(j.a[0]),ay=Y(j.a[1]),bx=X(j.b[0]),by=Y(j.b[1]);
+      const mx=(ax+bx)/2,my=(ay+by)/2,dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+      const k=Math.min(28,L*0.12), cx=mx-dy/L*k, cy=my+dx/L*k;
+      el("path",{d:`M${ax},${ay} Q${cx},${cy} ${bx},${by}`,fill:"none",stroke:"#111",opacity:.35,"stroke-width":6,"stroke-linecap":"round"},g);
+      el("path",{d:`M${ax},${ay} Q${cx},${cy} ${bx},${by}`,fill:"none",stroke:j.color,"stroke-width":4,"stroke-linecap":"round"},g);
+      [[ax,ay],[bx,by]].forEach(([x,y])=>el("circle",{cx:x,cy:y,r:4.2,fill:j.color,stroke:"#fff","stroke-width":1.3},g));
+      if(show.lb){const lx=0.25*ax+0.5*cx+0.25*bx, ly=0.25*ay+0.5*cy+0.25*by;
+        el("rect",{x:lx-13,y:ly-8,width:26,height:15,rx:3,fill:j.color},g); txt(j.id,lx,ly+3.5,{"text-anchor":"middle","font-size":10,fill:"#fff","font-weight":700},g);}
+      el("title",{},g).textContent=`Jumper ${j.id} (${j.net}): ${lab(...j.a)} ↔ ${lab(...j.b)}`;
+    });
+  }
+  // components
+  const cg=el("g",{class:view==="sold"?"ghost":""},svg);
+  D.comps.forEach(c=>drawComp(c,el("g",{class:cls(stagesOf(c))},cg),show));
+  // solder blobs for leads in solder view
+  if(view==="sold"){
+    const sg=el("g",{},svg);
+    D.comps.forEach(c=>{const g=el("g",{class:cls(stagesOf(c))},sg); c.pins.forEach(([x,y])=>{el("circle",{cx:X(x),cy:Y(y),r:P*0.3,fill:"#b9bec4",stroke:"#6d7278","stroke-width":1.2},g);});
+      if(show.lb){const [x,y]=c.pins[0]; txt(c.id,X(x)+7,Y(y)-7,{"font-size":8.5,fill:"#1b1b1b","font-weight":700},g);}});
+    D.jumpers.forEach(j=>{const g=el("g",{class:cls([j.stage])},sg);[j.a,j.b].forEach(p=>{el("circle",{cx:X(p[0]),cy:Y(p[1]),r:P*0.3,fill:"#b9bec4",stroke:j.color,"stroke-width":2.4},g);}); if(show.lb) txt(j.id,X(j.a[0])+8,Y(j.a[1])+12,{"font-size":8.5,fill:j.color,"font-weight":700},g);});
+  }
+  if(show.jp&&show.lb&&view==="comp"){const tg=el("g",{},svg); D.jumpers.forEach(j=>{const g=el("g",{class:cls([j.stage])},tg);
+    const ax=X(j.a[0]),ay=Y(j.a[1]),bx=X(j.b[0]),by=Y(j.b[1]); const lx=(ax+bx)/2-P*0.9, ly=(ay+by)/2;
+    el("rect",{x:lx-13,y:ly-8,width:26,height:15,rx:3,fill:j.color,stroke:"#fff","stroke-width":1},g); txt(j.id,lx,ly+3.5,{"text-anchor":"middle","font-size":10,fill:"#fff","font-weight":700},g);});}
+  if(view==="comp") drawBridges();
+  // hover layer
+  const hg=el("g",{},svg);
+  const pn=data._pn, pl=data._pl, pre=tag?tag+" ":"";
+  for(let x=0;x<25;x++)for(let y=1;y<=28;y++){
+    const r=el("rect",{x:X(x)-P/2,y:Y(y)-P/2,width:P,height:P,fill:"transparent"},hg);
+    r.addEventListener("pointerenter",()=>{const k=x+","+y; const n=pn[k]; const ld=pl[k];
+      ro.textContent=pre+lab(x,y)+(n?`  ·  net ${n}`:"  ·  kosong")+(ld?`  ·  ${ld}`:"");});
+  }
+  D=D0;
+}
+
+function axial(g,a,b,L,fill,label,band,bandCol,show){
+  const ax=X(a[0]),ay=Y(a[1]),bx=X(b[0]),by=Y(b[1]); const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len;
+  el("line",{x1:ax,y1:ay,x2:bx,y2:by,stroke:"#8b9299","stroke-width":2},g);
+  const mx=(ax+bx)/2,my=(ay+by)/2,ang=Math.atan2(dy,dx)*180/Math.PI;
+  const bg=el("g",{transform:`translate(${mx},${my}) rotate(${ang})`},g);
+  el("rect",{x:-L/2,y:-P*0.34,width:L,height:P*0.68,rx:P*0.3,fill,stroke:"rgba(0,0,0,.45)","stroke-width":1},bg);
+  if(band!=null){const bxp=band*(L/2-6); el("rect",{x:bxp-2.5,y:-P*0.34,width:5,height:P*0.68,fill:bandCol},bg);}
+  if(show.lb&&label){const up=Math.abs(ang)>90; txt(label,0,3.5,{"text-anchor":"middle","font-size":9,fill:fill==="#222"?"#fff":"#1a1a1a","font-weight":700,transform:up?"rotate(180)":""},bg);}
+  [a,b].forEach(p=>el("circle",{cx:X(p[0]),cy:Y(p[1]),r:3.2,fill:"#cfd3d7",stroke:"#6d7278"},g));
+}
+function drawComp(c,g,show){
+  const pins=c.pins, p0=pins[0], p1=pins[1]||pins[0];
+  const T=c.typ;
+  if(T==="res") axial(g,p0,p1,P*2.3,"#e6cf9c",c.id+" "+c.val.replace(" (Rseri)",""),null,null,show);
+  else if(T==="dio"){const kFirst=p0[3]==="K"; axial(g,p0,p1,P*1.9,"#222",c.id,kFirst?-1:1,"#d8dde2",show);}
+  else if(T==="zen"){const kFirst=p0[3]==="K"; axial(g,p0,p1,P*1.5,"#e79a55",c.id,kFirst?-1:1,"#111",show);}
+  else if(T==="capb"){
+    const ax=X(p0[0]),ay=Y(p0[1]),bx=X(p1[0]),by=Y(p1[1]),mx=(ax+bx)/2,my=(ay+by)/2;
+    el("circle",{cx:mx,cy:my,r:P*0.72,fill:"#2e7d5b",stroke:"rgba(0,0,0,.5)"},g);
+    txt("NP",mx,my+3.5,{"text-anchor":"middle","font-size":8.5,fill:"#fff","font-weight":700},g);
+    [p0,p1].forEach(p=>el("circle",{cx:X(p[0]),cy:Y(p[1]),r:3.2,fill:"#cfd3d7",stroke:"#6d7278"},g));
+    if(show.lb) txt(c.id+" 10µF",mx,my-P*0.9,{"text-anchor":"middle","font-size":9,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);
+  }
+  else if(T==="capc"||T==="capf"||T==="cape"){
+    const ax=X(p0[0]),ay=Y(p0[1]),bx=X(p1[0]),by=Y(p1[1]),mx=(ax+bx)/2,my=(ay+by)/2,ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,len=Math.hypot(bx-ax,by-ay);
+    el("line",{x1:ax,y1:ay,x2:bx,y2:by,stroke:"#8b9299","stroke-width":2},g);
+    const bg=el("g",{transform:`translate(${mx},${my}) rotate(${ang})`},g);
+    if(T==="capc") el("ellipse",{cx:0,cy:0,rx:Math.max(len/2+5,P*0.6),ry:P*0.38,fill:"#e3a52a",stroke:"rgba(0,0,0,.45)"},bg);
+    if(T==="capf") el("rect",{x:-len/2-5,y:-P*0.4,width:len+10,height:P*0.8,rx:2,fill:"#b8322a",stroke:"rgba(0,0,0,.5)"},bg);
+    if(T==="cape"){el("circle",{cx:0,cy:0,r:P*0.98,fill:"#1f3f8f",stroke:"rgba(0,0,0,.5)"},bg);
+      const neg=p0[3]==="-"?-1:1; el("path",{d:`M${neg*P*0.55},${-P*0.8} A${P*0.98},${P*0.98} 0 0 ${neg>0?1:0} ${neg*P*0.55},${P*0.8}`,fill:"none",stroke:"#d6dbe2","stroke-width":5},bg);}
+    [p0,p1].forEach(p=>el("circle",{cx:X(p[0]),cy:Y(p[1]),r:3.2,fill:"#cfd3d7",stroke:"#6d7278"},g));
+    if(T==="cape"){const pp=pins.find(p=>p[3]==="+"); txt("+",X(pp[0])+(view==="comp"?-1:-1)*0+ (pp===p0?-9:9)*Math.cos(ang*Math.PI/180),Y(pp[1])-7,{"font-size":12,fill:"#fff","font-weight":700,"text-anchor":"middle"},g);}
+    if(show.lb){const sd=c.id==="C32", tx=sd?mx+P*1.15:mx, ty=sd?my+3:(T==="cape"?my+P*1.35:my-P*0.62); txt(c.id+" "+c.val.replace(" film","").replace(" 16V","").replace(" 25V",""),tx,ty,{"text-anchor":sd?"start":"middle","font-size":9,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);}
+  }
+  else if(T==="dip"){
+    const xs=pins.map(p=>X(p[0])),ys=pins.map(p=>Y(p[1]));
+    const L=Math.min(...xs),R=Math.max(...xs),Tt=Math.min(...ys),Bt=Math.max(...ys);
+    const vert=new Set(pins.map(p=>p[0])).size===2;
+    el("rect",{x:L-P*0.55,y:Tt-P*0.55,width:R-L+P*1.1,height:Bt-Tt+P*1.1,rx:3,fill:"#4a4f55",opacity:.9},g);
+    if(vert) el("rect",{x:L+P*0.35,y:Tt-P*0.45,width:R-L-P*0.7,height:Bt-Tt+P*0.9,rx:2,fill:"#1d2024"},g);
+    else el("rect",{x:L-P*0.45,y:Tt+P*0.35,width:R-L+P*0.9,height:Bt-Tt-P*0.7,rx:2,fill:"#1d2024"},g);
+    const cx=(L+R)/2, cy=(Tt+Bt)/2, p1=pins[0], p1x=X(p1[0]), p1y=Y(p1[1]);
+    if(vert){el("path",{d:`M${cx-7},${Tt-P*0.45} A7,7 0 0 0 ${cx+7},${Tt-P*0.45}`,fill:"#4a4f55"},g);}
+    else{const nx=p1x<cx?L-P*0.45:R+P*0.45, sg=p1x<cx?1:-1; el("path",{d:`M${nx},${cy-7} A7,7 0 0 ${sg>0?1:0} ${nx},${cy+7}`,fill:"#4a4f55"},g);}
+    pins.forEach(([x,y,n,l])=>{el("rect",{x:X(x)-5,y:Y(y)-5,width:10,height:10,fill:"#c9ced3",stroke:"#555"},g);
+      if(show.lb){ if(vert){const left=X(x)<cx; txt(l,X(x)+(left?9:-9),Y(y)+3.5,{"text-anchor":left?"start":"end","font-size":8.5,fill:"#e8e8e8"},g);}
+        else{const top=Y(y)<cy; txt(l,X(x),Y(y)+(top?16:-10),{"text-anchor":"middle","font-size":8.5,fill:"#e8e8e8"},g);} }});
+    el("circle",{cx:vert?p1x+(p1x<cx?P*0.62:-P*0.62):p1x+(p1x<cx?P*0.25:-P*0.25),cy:vert?p1y-P*0.25:p1y+(p1y<cy?P*0.62:-P*0.62),r:2.6,fill:"#fff"},g);
+    txt(c.id+" "+c.val,cx,cy+4,{"text-anchor":"middle","font-size":11,fill:"#fff","font-weight":700,transform:vert?`rotate(-90 ${cx} ${cy+4})`:""},g);
+  }
+  else if(T==="pot"){
+    const xs=pins.map(p=>X(p[0])),ys=pins.map(p=>Y(p[1])),mx=(Math.min(...xs)+Math.max(...xs))/2,my=(Math.min(...ys)+Math.max(...ys))/2;
+    const horiz=new Set(pins.map(p=>p[1])).size===1;
+    if(c.body==="trim"){
+      const Lg=P*3.7,Sh=P*1.9,w=horiz?Lg:Sh,h=horiz?Sh:Lg;
+      el("rect",{x:mx-w/2,y:my-h/2,width:w,height:h,rx:3,fill:"#2a62c9",stroke:"rgba(0,0,0,.5)"},g);
+      const sx=horiz?mx-w/2+P*0.55:mx, sy=horiz?my:my-h/2+P*0.55;
+      el("circle",{cx:sx,cy:sy,r:P*0.36,fill:"#d9b24a",stroke:"#6b5314"},g); el("line",{x1:sx-5,y1:sy,x2:sx+5,y2:sy,stroke:"#6b5314","stroke-width":2},g);
+      pins.forEach(([x,y,n,l])=>{el("circle",{cx:X(x),cy:Y(y),r:3.4,fill:"#cfd3d7",stroke:"#6d7278"},g); if(show.lb) txt(l,X(x)+(horiz?0:(view==="comp"?-9:9)),Y(y)+(horiz?-6:3),{"text-anchor":"middle","font-size":8,fill:"#fff","font-weight":700},g);});
+      if(show.lb) txt(c.id,horiz?mx:mx+(view==="comp"?1:-1)*(w/2+4),horiz?my+h/2+11:my+3,{"text-anchor":horiz?"middle":(view==="comp"?"start":"end"),"font-size":10,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);
+    } else if(c.body==="left"){
+      const px=xs[0], inward=(X(23)-X(24))>0?1:-1, bw=P*2.6, bh=P*6.3;
+      const bx=inward>0?px+P*0.35:px-P*0.35-bw;
+      el("rect",{x:bx,y:my-bh/2,width:bw,height:bh,rx:4,fill:"#7d8791",stroke:"rgba(0,0,0,.5)"},g);
+      const sx=inward>0?px-P*0.35-P*1.9:px+P*0.35;
+      el("rect",{x:sx,y:my-P*0.45,width:P*1.9,height:P*0.9,rx:2,fill:"#c7ccd2",stroke:"#555"},g);
+      el("rect",{x:inward>0?sx-P*0.9:sx+P*1.9,y:my-P*0.75,width:P*0.9,height:P*1.5,rx:3,fill:"#24292e"},g);
+      pins.forEach(([x,y,n,l])=>{el("circle",{cx:X(x),cy:Y(y),r:3.6,fill:"#cfd3d7",stroke:"#6d7278"},g); if(show.lb) txt(l,X(x)+inward*16,Y(y)+3,{"text-anchor":"middle","font-size":8.5,fill:"#fff","font-weight":700},g);});
+      if(show.lb) txt(c.id+" (knob)",bx+bw/2,my-bh/2-6,{"text-anchor":"middle","font-size":10,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);
+    } else {
+      const y=Y(pins[0][1]),mid=mx,dir=c.body==="up"?-1:1, bw=P*4.3,bd=P*2.4;
+      el("rect",{x:mid-bw/2,y:dir<0?y-P*0.45-bd:y+P*0.45,width:bw,height:bd,rx:4,fill:"#7d8791",stroke:"rgba(0,0,0,.5)"},g);
+      pins.forEach(([x,yy,n,l])=>{el("circle",{cx:X(x),cy:Y(yy),r:3.6,fill:"#cfd3d7",stroke:"#6d7278"},g);});
+    }
+  }
+  else if(T==="hdr"){
+    const ys=pins.map(p=>Y(p[1])), xs=pins.map(p=>X(p[0]));
+    el("rect",{x:Math.min(...xs)-P*0.45,y:Math.min(...ys)-P*0.45,width:Math.max(...xs)-Math.min(...xs)+P*0.9,height:Math.max(...ys)-Math.min(...ys)+P*0.9,rx:2,fill:"#15181b"},g);
+    if(show.lb) txt(c.id,(Math.min(...xs)+Math.max(...xs))/2,Math.max(...ys)+P*0.95,{"text-anchor":"middle","font-size":10,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);
+    pins.forEach(([px,py,n,l])=>{el("rect",{x:X(px)-3.5,y:Y(py)-3.5,width:7,height:7,fill:"#e5c35b"},g);});
+    if(show.lb){pins.forEach(([px,py,n,l])=>{const t=txt(l,X(px),Y(py)+(view==="comp"?0:0),{"text-anchor":"middle","font-size":7,fill:"#fff","font-weight":700,dy:-7},g);});}
+  }
+  else if(T==="tp"||T==="tpg"){
+    const [x,y]=pins[0]; const col=T==="tpg"?"#111":((TPS()[c.id]||TP[c.id]||{}).c)||"#333";
+    el("rect",{x:X(x)-4.5,y:Y(y)-4.5,width:9,height:9,fill:"#e5c35b",stroke:"#15181b","stroke-width":2},g);
+    el("circle",{cx:X(x),cy:Y(y),r:P*0.47,fill:"none",stroke:col,"stroke-width":2.5},g);
+    if(show.lb){const t=T==="tpg"?"GND":c.id, w=t.length*6.6+8, fx=X(x)>W-70?X(x)-8-w:X(x)+8, fy=Y(y)-P*0.95;
+      el("rect",{x:fx,y:fy,width:w,height:14,rx:3,fill:col},g); txt(t,fx+w/2,fy+10.5,{"text-anchor":"middle","font-size":9.5,fill:"#fff","font-weight":700},g);}
+  }
+  else if(T==="wire"){
+    pins.forEach(([x,y,n,l])=>{el("circle",{cx:X(x),cy:Y(y),r:5,fill:"#d02a2a",stroke:"#fff","stroke-width":1.5},g);
+      el("path",{d:`M${X(x)},${Y(y)} q${view==="comp"?-10:10},-8 ${view==="comp"?-20:20},-4`,stroke:"#d02a2a","stroke-width":3,fill:"none"},g);
+      if(show.lb) txt(l,X(x)+(view==="comp"?-24:24),Y(y)-8,{"text-anchor":"middle","font-size":10,fill:"#1a1a1a","font-weight":700,"paint-order":"stroke",stroke:"#f1dcc0","stroke-width":3},g);});
+  }
+  const t=el("title",{},g); t.textContent=`${c.id} ${c.val}: `+pins.map(p=>`${p[3]}→${lab(p[0],p[1])}`).join(", ");
+}
+
+// ---------- panel ----------
+function runText(r){const n=Math.abs(r.a[0]-r.b[0])+Math.abs(r.a[1]-r.b[1])+1; return `${lab(...r.a)} → ${lab(...r.b)}`+` <span class="muted">(${n} lbg)</span>`;}
+function renderPanel(){
+  const SS=STG(), IN=INF(), TT=TPS();
+  const st=SS.find(s=>s.id===stage)||SS[0], inf=IN[stage]||IN.all;
+  const comps=D.comps.filter(c=>stage!=="all"&&stagesOf(c).includes(stage));
+  const runs=stage==="all"?[]:D.runs.filter(r=>r.stage===stage);
+  const jps=D.jumpers.filter(j=>stage==="all"||j.stage===stage);
+  const tps=Object.keys(TT).filter(k=>{const c=D.comps.find(x=>x.id===k); return c&&(stage==="all"||c.stage===stage);});
+  let h=`<div class="head" style="--c:var(${st.c})"><h2>${inf.t}</h2><p class="muted">${inf.d}</p></div>`;
+  h+=`<div><h3>Langkah</h3><ol class="steps">${inf.steps.map(s=>`<li>${s}</li>`).join("")}</ol></div>`;
+  if(comps.length){
+    h+=`<div><h3>Komponen → lubang</h3><div class="tscroll"><table><tr><th>Ref</th><th>Nilai</th><th>Kaki → lubang</th></tr>`;
+    comps.forEach(c=>{let pins=c.pins; if(c.id==="IC5"&&stage!=="all"){const want={pw:["3","4","5","6","7","10","11"],pe:["12","13","14"],pp:["1","2","3"],pi:["8","9","10"]}[stage]; if(want) pins=pins.filter(p=>want.includes(p[3]));}
+      if(c.id==="IC6"&&stage!=="all"){const want={pw:["3","4","5","8","9","10","11","12","13","14"],pu:["5","6","7"],pd:["1","2","3"]}[stage]; if(want) pins=pins.filter(p=>want.includes(p[3]));}
+      if(c.id==="IC7"&&stage!=="all"){const want={w:["8","9","12"],o:["1"],n:["11","12"],c:["2","3","4"],v:["5","10"]}[stage]; if(want) pins=pins.filter(p=>want.includes(p[3]));}
+      if(c.id==="IC2"&&stage!=="all"){const want={"2":["12","13","14","4","11"],"3":["3"],"4":["1","2","3"],"5":["5","6","7","8","9","10"]}[stage]; pins=pins.filter(p=>want.includes(p[3]));}
+      h+=`<tr><td><b>${c.id}</b></td><td>${c.val}</td><td class="mono" style="white-space:normal">${pins.map(p=>`${p[3]==="-"?"(−)":p[3]==="+"?"(+)":p[3]}→<b>${lab(p[0],p[1])}</b>`).join(" · ")}</td></tr>`;});
+    h+=`</table></div></div>`;
+  }
+  if(runs.length){
+    const byNet={}; runs.forEach(r=>(byNet[r.net]=byNet[r.net]||[]).push(r));
+    h+=`<div><h3>Jalur solder (sisi tembaga)</h3><div class="tscroll"><table><tr><th>Net</th><th>Dari → ke</th></tr>`;
+    Object.keys(byNet).forEach(n=>{h+=`<tr><td><b>${n}</b></td><td class="mono" style="white-space:normal">${byNet[n].map(runText).join("<br>")}</td></tr>`;});
+    h+=`</table></div></div>`;
+  }
+  if(jps.length){
+    h+=`<div><h3>Jumper berisolasi (sisi komponen)</h3><div class="tscroll"><table><tr><th>ID</th><th>Net</th><th>Dari ↔ ke</th></tr>`;
+    jps.forEach(j=>h+=`<tr><td><span class="chip" style="color:${j.color}">${j.id}</span></td><td>${j.net}</td><td class="mono"><b>${lab(...j.a)}</b> ↔ <b>${lab(...j.b)}</b></td></tr>`);
+    h+=`</table></div></div>`;
+  }
+  if(tps.length){
+    h+=`<div><h3>Probe osiloskop</h3><div style="display:grid;gap:8px">`;
+    tps.forEach(k=>{const t=TPS()[k],c=D.comps.find(x=>x.id===k),[x,y]=c.pins[0];
+      h+=`<div class="tpcard"><div class="t"><span class="dot" style="--c:${t.c}"></span>${k} · <span class="mono">${lab(x,y)}</span> <span class="muted" style="font-weight:400">${t.node}</span></div><div>${t.exp}</div><div class="muted mono">${t.sc} · ground probe ke pin GND terdekat</div></div>`;});
+    h+=`</div></div>`;
+  }
+  if(lview==="gabung"){
+    h+=`<div><h3>Kabel penghubung antar-setengah</h3><div class="tscroll"><table><tr><th>ID</th><th>Sambungan</th></tr>`+
+      CABLES.map(k=>`<tr><td><span class="chip" style="color:${k.color}">${k.id}</span></td><td style="white-space:normal">${k.name}</td></tr>`).join("")+`</table></div></div>`;
+  }
+  if(stage==="all"&&lview!=="gabung"){
+    h+=`<div class="warn">Pilih tab tahap untuk melihat daftar lubang, jalur solder, dan jumper khusus tahap itu. Elemen tahap lain akan diredupkan, dan jalur daya tetap tampak samar sebagai acuan.</div>`;
+  }
+  panel.innerHTML=h;
+}
+
+// ---------- static sections ----------
+function legendSVG(kind){const s=`<svg width="46" height="18" viewBox="0 0 46 18">`;
+  if(kind==="br") return s+`<line x1="5" y1="9" x2="41" y2="9" stroke="#5d6166" stroke-width="10" stroke-linecap="round"/><line x1="5" y1="9" x2="41" y2="9" stroke="#e4e7ea" stroke-width="7" stroke-linecap="round"/></svg>`;
+  if(kind==="brc") return s+`<line x1="5" y1="9" x2="41" y2="9" stroke="${SVAR("--s1")}" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/></svg>`;
+  if(kind==="jp") return s+`<path d="M5,13 Q23,0 41,13" fill="none" stroke="#e53935" stroke-width="4" stroke-linecap="round"/><circle cx="5" cy="13" r="3.5" fill="#e53935"/><circle cx="41" cy="13" r="3.5" fill="#e53935"/></svg>`;
+  if(kind==="tp") return s+`<rect x="18" y="4" width="10" height="10" fill="#e5c35b" stroke="#15181b" stroke-width="2"/><circle cx="23" cy="9" r="8" fill="none" stroke="#2fb344" stroke-width="2.5"/></svg>`;
+}
+function statics(){
+  const nC=d=>d.comps.filter(c=>!["tp","tpg","wire"].includes(c.typ)).length;
+  const nTP=d=>d.comps.filter(c=>c.typ==="tp").length;
+  const B=DATA.bot, T=DATA.top;
+  if(lview==="gabung") meta.innerHTML=`<span>Papan <b>Mascot PCB002</b>, dua setengah (A–Y × 1–28 masing-masing)</span><span><b>${nC(B)+nC(T)}</b> komponen</span><span><b>${B.runs.length+T.runs.length}</b> ruas jalur solder</span><span><b>${B.jumpers.length+T.jumpers.length}</b> jumper + <b>${CABLES.length}</b> kabel penghubung</span><span><b>${nTP(B)+nTP(T)}</b> test point</span>`;
+  else meta.innerHTML=`<span>Papan <b>Mascot PCB002</b>, setengah ${lview==="close"?"atas · close loop (sensor + PID)":"bawah · open loop"} (A–Y × 1–28)</span><span><b>${nC(D)}</b> komponen</span><span><b>${D.runs.length}</b> ruas jalur solder</span><span><b>${D.jumpers.length}</b> jumper</span><span><b>${nTP(D)}</b> test point</span><span>Netlist diverifikasi: 0 short, 0 net putus</span>`;
+  legend.innerHTML=`
+   <div>${legendSVG("br")}<span><b>Jalur solder</b> di sisi tembaga (Tampak Solder): jembatan timah antar pad atau kawat tembaga telanjang.</span></div>
+   <div>${legendSVG("brc")}<span>Jalur solder yang sama dilihat dari Tampak Komponen (putus-putus = ada di bawah papan).</span></div>
+   <div>${legendSVG("jp")}<span><b>Kabel / jumper berisolasi</b>: K1, K3, K4 antar setengah papan (mode Digabung), W2 dan W3 di setengah atas.</span></div>
+   <div>${legendSVG("tp")}<span><b>Test point</b>: pin header tunggal untuk kait probe. Sensor: TP8 pulsa, TP9 PV. PID: TP11–TP14, u di J8.</span></div>`;
+  const NB=T, isP=true;
+  ntTitle.textContent="Uji bunyi multimeter setengah atas (sebelum IC5, IC6, IC7 dipasang)";
+  ntLead.textContent="Setiap titik dalam satu baris harus saling bunyi. Titik dari baris berbeda tidak boleh bunyi, terutama GND, +9V, −9V satu sama lain, AP (N8) dengan −9V (N7), dan GND dengan TREF.";
+  const nets={}; NB.comps.forEach(c=>c.pins.forEach(([x,y,n,l])=>{ if(n.startsWith("NC")) return; (nets[n]=nets[n]||[]).push(`${c.id}.${l}=<b>${lab(x,y)}</b>`);}));
+  const nm={VP:"+9V",VN:"−9V IC5",VN2:"−9V IC6",GND:"GND",VT:"V+ IC7",LEDA:"LED A",SIG:"SIG",TREF:"TREF",CP1:"CP1",CP2:"CP2",PVR:"PV sensor",PV:"PV PID",SPH:"SP atas",SPW:"SP",AP:"AP",AM:"AM",E:"e",PM:"P−",P:"P",INM:"I−",I:"I",DN:"DN",DM:"D−",DR:"D",SM:"Σ−",U:"u"};
+  let h=`<tr><th>Net</th><th>Titik yang harus saling bunyi</th></tr>`;
+  Object.keys(nm).filter(n=>nets[n]).forEach(n=>h+=`<tr><td><span class="chip" style="color:${NETCOL[n]}">${nm[n]}</span></td><td class="mono" style="white-space:normal">${nets[n].join(" · ")}</td></tr>`);
+  nettable.innerHTML=h;
+}
+
+// ---------- wiring ----------
+const tabs=document.getElementById("tabs");
+function buildTabs(){ tabs.innerHTML="";
+  STG().forEach(sg=>{const b=document.createElement("button"); b.className="tab"; b.style.setProperty("--c",`var(${sg.c})`); b.innerHTML=(sg.id==="all"?"":"<i></i>")+sg.name; b.dataset.id=sg.id;
+    b.addEventListener("click",()=>{stage=sg.id; render();}); tabs.appendChild(b);});
+  if(!STG().some(sg=>sg.id===stage)) stage="all"; }
+[...document.querySelectorAll(".lv")].forEach(b=>b.addEventListener("click",()=>{
+  lview=b.dataset.lv; stage="all"; D=dataFor(lview);
+  try{localStorage.setItem("sk_lview",lview)}catch(e){}
+  stage="all"; buildTabs(); statics(); render();}));
+vComp.onclick=()=>{view="comp";try{localStorage.setItem("sk_view",view)}catch(e){} render();};
+vSold.onclick=()=>{view="sold";try{localStorage.setItem("sk_view",view)}catch(e){} render();};
+[lBr,lJp,lLb].forEach(i=>i.onchange=drawBoard);
+lZm.onchange=()=>bbox.classList.toggle("zoom",lZm.checked);
+function render(){
+  [...tabs.children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.id===stage));
+  [...document.querySelectorAll(".lv")].forEach(b=>b.setAttribute("aria-pressed",b.dataset.lv===lview));
+  vComp.setAttribute("aria-pressed",view==="comp"); vSold.setAttribute("aria-pressed",view==="sold");
+  const nm={open:"Setengah bawah · open loop",close:"Setengah atas · close loop (sensor + PID)",gabung:"Dua setengah digabung"}[lview];
+  vname.textContent=nm+" — "+(view==="comp"?"Tampak Komponen":"Tampak Solder");
+  orient.textContent=lview==="gabung"
+    ? (view==="comp"?"Papan utuh dilihat dari sisi komponen. Setengah atas tampak terbalik (baris 28 di atas, baris 1 di dekat strip huruf tengah), persis seperti papan aslinya. Kabel penghubung K1, K3, K4 melintasi strip tengah.":"Papan utuh dari sisi tembaga, sama seperti foto: huruf setengah bawah terbaca normal, huruf setengah atas terbalik.")
+    : (view==="comp"?"Balik papan ke samping (seperti membuka halaman buku) dari posisi foto. Kolom A pindah ke kanan. Komponen dan jumper dipasang dari sisi ini.":"Posisi sama seperti foto: sisi tembaga menghadap Anda dan huruf A–Y terbaca normal. Semua penyolderan dikerjakan dari sisi ini.");
+  drawBoard(); renderPanel();
+}
+buildTabs(); statics(); render();
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>{statics();render();});
+function box(x,y,w,h,t,sub,c,extra){return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" style="fill:var(--paper);stroke:${c};stroke-width:2"/>
+ <text x="${x+w/2}" y="${y+(sub?h/2-3:h/2+5)}" text-anchor="middle" style="fill:var(--ink);font:700 13.5px var(--f-disp)">${t}</text>
+ ${sub?`<text x="${x+w/2}" y="${y+h/2+14}" text-anchor="middle" style="fill:var(--muted);font:11px var(--f-mono)">${sub}</text>`:""}${extra||""}</g>`;}
+function arr(x1,y1,x2,y2,lab,ly){const id="ah";return `<g><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:var(--muted);stroke-width:1.8" marker-end="url(#${id})"/>
+ ${lab?`<text x="${(x1+x2)/2}" y="${(ly!=null?ly:Math.min(y1,y2)-7)}" text-anchor="middle" style="fill:var(--muted);font:600 11px var(--f-mono)">${lab}</text>`:""}</g>`;}
+const DEFS=`<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" style="fill:var(--muted)"/></marker></defs>`;
+const S=k=>`var(${k})`;
+// ================= PAGES =================
+(function(){
+const PGS=["layout","final","skem","samb","pid","m3d"];
+const btns=[...document.querySelectorAll(".pages button")];
+function show(pg){ btns.forEach(b=>b.setAttribute("aria-selected",b.dataset.pg===pg));
+  PGS.forEach(p=>document.getElementById("pg-"+p).hidden=(p!==pg));
+  if(pg==="m3d"){ if(window.open3D) window.open3D(); } else if(window.close3D) window.close3D();
+  try{localStorage.setItem("sk_page",pg)}catch(e){} }
+btns.forEach(b=>b.addEventListener("click",()=>show(b.dataset.pg)));
+let pg="layout"; try{const v=localStorage.getItem("sk_page"); if(PGS.includes(v)) pg=v;}catch(e){}
+const h=location.hash.slice(1); if(PGS.includes(h)) pg=h;
+show(pg);
+})();
+
+// ================= SKEMATIK =================
+(function(){
+let C="--ink";
+const pl=p=>p.map(q=>q.join(",")).join(" ");
+const W=p=>`<polyline class="w" style="stroke:var(${C})" points="${pl(p)}"/>`;
+const J=(x,y)=>`<circle cx="${x}" cy="${y}" r="3.6" style="fill:var(${C})"/>`;
+const T=(x,y,s,c="lb",a="start")=>`<text x="${x}" y="${y}" class="${c}" text-anchor="${a}">${s}</text>`;
+const N=(x,y,s,a="middle")=>`<text x="${x}" y="${y}" class="nt" text-anchor="${a}" style="fill:var(${C})">${s}</text>`;
+function res(x1,y1,x2,y2,lab,o={}){
+  const h=y1===y2,L=h?x2-x1:y2-y1,len=Math.abs(L),d=Math.sign(L)||1,b=Math.min(36,len-12),s=(len-b)/2;let out="",pts=[];
+  if(h){const a=x1+d*s,c=x2-d*s;out+=W([[x1,y1],[a,y1]])+W([[c,y1],[x2,y1]]);pts.push([a,y1]);
+    for(let i=0;i<6;i++)pts.push([a+d*b*(i+.5)/6,y1+(i%2?6:-6)]);pts.push([c,y1]);
+    out+=`<polyline class="sym" points="${pl(pts)}"/>`;const mx=(x1+x2)/2;
+    out+=T(mx+(o.dx||0),o.below?y1+(o.pot?30:23):y1-(o.pot?20:12),lab,"lb","middle");
+    if(o.pot)out+=`<line class="sym" x1="${mx-16}" y1="${y1+12}" x2="${mx+16}" y2="${y1-12}"/><path class="fs" d="M${mx+16} ${y1-12} l-8 1 l5 5 z"/>`;
+  }else{const a=y1+d*s,c=y2-d*s;out+=W([[x1,y1],[x1,a]])+W([[x1,c],[x1,y2]]);pts.push([x1,a]);
+    for(let i=0;i<6;i++)pts.push([x1+(i%2?6:-6),a+d*b*(i+.5)/6]);pts.push([x1,c]);
+    out+=`<polyline class="sym" points="${pl(pts)}"/>`;const my=(y1+y2)/2;
+    out+=o.left?T(x1-13,my+4,lab,"lb","end"):T(x1+13,my+4,lab);
+    if(o.pot)out+=`<line class="sym" x1="${x1-12}" y1="${my+16}" x2="${x1+12}" y2="${my-16}"/><path class="fs" d="M${x1+12} ${my-16} l-1 8 l-5 -5 z"/>`;}
+  return out;}
+function cap(x1,y1,x2,y2,lab,o={}){
+  const h=y1===y2;let out="";
+  if(h){const m=(x1+x2)/2;out+=W([[x1,y1],[m-4,y1]])+W([[m+4,y1],[x2,y1]]);
+    out+=`<line class="sym" x1="${m-4}" y1="${y1-11}" x2="${m-4}" y2="${y1+11}"/><line class="sym" x1="${m+4}" y1="${y1-11}" x2="${m+4}" y2="${y1+11}"/>`;
+    out+=T(m,o.below?y1+27:y1-17,lab,"lb","middle");
+  }else{const m=(y1+y2)/2;out+=W([[x1,y1],[x1,m-4]])+W([[x1,m+4],[x1,y2]]);
+    out+=`<line class="sym" x1="${x1-11}" y1="${m-4}" x2="${x1+11}" y2="${m-4}"/><line class="sym" x1="${x1-11}" y1="${m+4}" x2="${x1+11}" y2="${m+4}"/>`;
+    out+=o.left?T(x1-17,m+4,lab,"lb","end"):T(x1+17,m+4,lab);}
+  return out;}
+const G=(x,y)=>W([[x,y],[x,y+8]])+`<g class="gnd"><line x1="${x-10}" y1="${y+8}" x2="${x+10}" y2="${y+8}"/><line x1="${x-6}" y1="${y+12}" x2="${x+6}" y2="${y+12}"/><line x1="${x-2}" y1="${y+16}" x2="${x+2}" y2="${y+16}"/></g>`;
+const F=(x,y,s)=>`<line x1="${x-11}" y1="${y}" x2="${x+11}" y2="${y}" style="stroke:var(${C});stroke-width:2.4"/>`+N(x,y-7,s);
+const OP=(x,y,id)=>`<path class="opb" d="M${x} ${y-30} L${x} ${y+30} L${x+60} ${y} Z"/>`+T(x+6,y-11,"−","lb")+T(x+6,y+20,"+","lb")+T(x+24,y+4,id,"pn");
+const TPm=(x,y,s,a="middle",dy=-10)=>`<circle cx="${x}" cy="${y}" r="7" class="tpr" style="stroke:var(${C})"/>`+N(x,y+dy,s,a);
+const keys=(el,list)=>{document.getElementById(el).innerHTML=list.map(([c,t])=>`<span style="--c:var(${c})"><i></i>${t}</span>`).join("");};
+
+/* ---------- sensor ---------- */
+keys("keysS",[["--s0","Daya"],["--s2","Optocoupler"],["--s4","Referensi TACH−"],["--s1","Charge pump"],["--s5","Output PV"]]);
+function sensorSVG(mid){let s=`<defs><marker id="${mid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" class="fs"/></marker></defs>`;
+C="--s0"; s+=W([[110,44],[210,44]])+W([[160,44],[160,34]])+J(160,44)+F(160,34,"+9V (J5)");
+s+=F(500,35,"+9V (J5)")+res(500,35,500,95,"R50 150 Ω")+W([[400,95],[530,95]])+J(470,95)+J(500,95);
+s+=W([[470,95],[470,110]])+W([[530,95],[530,110]])+cap(400,95,400,140,"C35 100 nF",{left:true})+G(400,140)+W([[510,410],[510,425]])+G(510,425);
+C="--s2";
+s+=res(110,44,110,108,"R52 470 Ω",{left:true})+W([[110,108],[110,120]]);
+s+=`<path class="sym" d="M101 120 L119 120 L110 134 Z"/><line class="sym" x1="101" y1="134" x2="119" y2="134"/>`+W([[110,134],[110,178]])+G(110,178);
+s+=T(96,124,"A","pn","end")+T(96,152,"K","pn","end");
+s+=`<line class="sym" x1="128" y1="122" x2="174" y2="128" marker-end="url(#${mid})"/><line class="sym" x1="128" y1="138" x2="174" y2="144" marker-end="url(#${mid})"/>`;
+s+=res(210,44,210,100,"R53 22 kΩ");
+s+=`<circle class="sym" cx="200" cy="138" r="17"/><line class="sym" x1="194" y1="127" x2="194" y2="149"/><line class="sym" x1="194" y1="133" x2="210" y2="122"/><line class="sym" x1="194" y1="143" x2="210" y2="154" marker-end="url(#${mid})"/>`;
+s+=W([[210,122],[210,100]])+W([[210,154],[210,178]])+G(210,178)+T(222,120,"C","pn")+T(222,166,"E","pn");
+s+=`<rect class="dsh" x="80" y="104" width="160" height="66" rx="6"/>`+T(80,222,"EE-SX112 (dikabel ke J6)","sb")+T(80,238,"K=O27 · A=N27 · C=M27 · E=L27","sb");
+s+=J(210,100)+W([[210,100],[262,100],[262,170],[420,170]])+J(300,170)+TPm(300,170,"TP8 · L25")+N(372,162,"SIG","start");
+C="--s4"; s+=F(340,215,"+9V")+res(340,215,340,275,"R54 33 kΩ",{left:true})+W([[340,275],[340,290],[420,290]])+J(340,290)+N(382,282,"≈ 2,1 V");
+s+=res(340,290,340,355,"R55 10 kΩ",{left:true})+G(340,355);
+C="--s1"; s+=W([[600,140],[680,140],[680,150]])+cap(680,150,680,182,"C33 10 nF*")+G(680,182);
+s+=W([[600,220],[630,220],[630,260],[600,260]])+W([[630,240],[820,240]])+J(630,240)+J(720,240);
+s+=cap(720,240,720,282,"C34 1 µF")+G(720,282)+res(820,240,820,312,"VR16 200 kΩ",{pot:true})+G(820,312);
+C="--s5"; s+=W([[600,330],[630,330],[630,380],[600,380]])+W([[630,355],[905,355]])+J(630,355)+J(720,355)+J(800,355);
+s+=res(720,355,720,425,"R49 10 kΩ")+G(720,425)+TPm(800,355,"TP9 · L21 = PV");
+s+=`<rect class="hdrb" x="905" y="336" width="54" height="58" rx="4"/>`+T(932,330,"J10","lb","middle")+T(912,359,"PV","pn")+T(912,382,"GND","pn");
+s+=W([[885,378],[905,378]])+G(885,378);
+s+=`<rect class="ic" x="420" y="110" width="180" height="300" rx="5"/>`+T(510,250,"LM2917N","tt","middle")+T(510,268,"IC7 · DIP-14","sb","middle");
+s+=T(428,174,"1 TACH+","pn")+T(428,294,"11 TACH−","pn")+T(470,128,"9 V+","pn","middle")+T(530,128,"8 COL","pn","middle");
+s+=T(592,144,"2 CP1","pn","end")+T(592,224,"3 CP2","pn","end")+T(592,264,"4 IN+","pn","end")+T(592,334,"5 EMIT","pn","end")+T(592,384,"10 IN−","pn","end")+T(510,402,"12 GND","pn","middle");
+s+=T(60,455,"* C33 final dipilih dari frekuensi maksimum di TP8, lalu VR16 disetel sampai PV = 5,00 V.","sb");
+return s;}
+schS.innerHTML=`<svg viewBox="0 0 980 470" role="img" aria-label="Skematik sensor EE-SX112 dan LM2917N">`+sensorSVG("ar1")+"</svg>";
+
+/* ---------- PID ---------- */
+keys("keysP",[["--s2","PV dari sensor"],["--s0","SP (VR15)"],["--s5","Error e"],["--s4","P"],["--s1","I"],["--s3","D"],["--s6","Σ dan u"]]);
+function pidSVG(){let s="";
+C="--s2"; s+=N(10,109,"PV (J9)","start")+W([[74,105],[90,105]])+res(90,105,170,105,"R42 10k")+W([[170,105],[230,105]]);
+C="--s0"; s+=N(10,139,"SP","start")+W([[30,135],[90,135]])+res(90,135,170,135,"R43 10k",{below:true})+W([[170,135],[230,135]]);
+s+=F(64,200,"+9V")+res(64,200,64,255,"R48 82k",{left:true})+res(64,255,64,330,"VR15",{left:true})+G(64,330);
+s+=`<path class="fs" d="M74 292 l10 -5 l0 10 z"/>`+W([[84,292],[96,292],[96,135]])+J(96,135)+T(102,306,"wiper (J12)","pn");
+s+=N(108,224,"ukur di M13","start");
+C="--s5"; s+=J(200,105)+J(200,135)+W([[200,105],[200,60],[215,60]])+res(215,60,295,60,"R41 10k")+W([[295,60],[310,60],[310,120]]);
+s+=res(200,135,200,192,"R44 10k")+G(200,192)+OP(230,120,"5D")+W([[290,120],[360,120]])+J(310,120)+N(326,111,"e")+TPm(340,120,"TP11","middle",24);
+s+=W([[360,120],[360,515],[380,515]])+J(360,235)+J(360,385);
+C="--s4"; s+=res(360,235,440,235,"R31 10k")+W([[440,235],[470,235]])+J(450,235);
+s+=W([[450,235],[450,195],[470,195]])+res(470,195,530,195,"VR11 50k",{pot:true})+W([[530,195],[550,195],[550,250]]);
+s+=OP(470,250,"5A")+W([[470,265],[455,265],[455,283]])+G(455,283)+W([[530,250],[760,250]])+J(550,250)+TPm(640,250,"TP12 · P = −Kp·e","middle",-12);
+C="--s1"; s+=res(360,385,440,385,"VR12 100k",{pot:true})+W([[440,385],[470,385]])+J(450,385);
+s+=W([[450,385],[450,345],[470,345]])+cap(470,345,530,345,"C31 4,7µ elco")+T(462,338,"+","lb","middle")+W([[530,345],[550,345],[550,400]]);
+s+=W([[450,345],[450,305],[486,305]])+W([[514,305],[550,305],[550,345]])+`<rect class="sym" x="486" y="301" width="8" height="8"/><rect class="sym" x="506" y="301" width="8" height="8"/>`+T(560,309,"JP2 reset","pn")+J(450,345)+J(550,345);
+s+=OP(470,400,"5C")+W([[470,415],[455,415],[455,433]])+G(455,433)+W([[530,400],[760,400]])+J(550,400)+TPm(640,400,"TP13 · I = −Ki∫e","middle",-12);
+C="--s3"; s+=res(380,515,460,515,"R47 10k")+W([[460,515],[480,515]])+cap(480,515,540,515,"C32 10µ elco",{below:true})+T(498,506,"+","lb","middle")+W([[540,515],[640,515]])+J(600,515);
+s+=W([[600,515],[600,475],[620,475]])+res(620,475,700,475,"VR13 100k",{pot:true,dx:40})+W([[700,475],[720,475],[720,530]]);
+s+=OP(640,530,"6A")+W([[640,545],[625,545],[625,563]])+G(625,563)+W([[700,530],[760,530]])+J(720,530)+TPm(740,530,"TP14 · D","middle",24);
+C="--s6"; s+=res(760,250,840,250,"R34 10k")+res(760,400,840,400,"R38 10k")+res(760,530,840,530,"R35 10k",{below:true});
+s+=W([[840,250],[860,250],[860,530],[840,530]])+W([[840,400],[860,400]])+J(860,400)+J(860,385)+W([[860,385],[940,385]])+N(872,376,"SM","start");
+s+=J(910,385)+W([[910,385],[910,330],[935,330]])+res(935,330,1000,330,"R36 10k")+W([[1000,330],[1020,330],[1020,400]]);
+s+=OP(940,400,"6B")+W([[940,415],[925,415],[925,433]])+G(925,433)+W([[1000,400],[1150,400]])+J(1020,400)+TPm(1070,400,"J8 · X15")+N(1158,405,"u","start")+T(1240,432,"J8 → J4 open loop","sb","end");
+s+=T(760,600,"Tidak dipakai: IC5 pin 6–7, IC6 pin 8–9 dan 13–14 disatukan · in+ ke GND","sb");
+s+=T(10,600,"P, I, D bertanda negatif. Σ membaliknya: u = Kp·e + Ki∫e + Kd·de/dt","sb");
+return s;}
+schP.innerHTML=`<svg viewBox="0 0 1260 620" role="img" aria-label="Skematik PID analog dua LM324">`+pidSVG()+"</svg>";
+
+/* ---------- FINAL ---------- */
+const OPF=(x,y,id)=>`<path class="opb" d="M${x} ${y-30} L${x} ${y+30} L${x+60} ${y} Z"/>`+T(x+6,y-9,"+","lb")+T(x+6,y+22,"−","lb")+T(x+24,y+4,id,"pn");
+const TAG=(x,y,s,dir)=>{const w=s.length*7.6+22,h=20;const p=dir==="r"?`M${x} ${y-h/2} h${w-10} l10 ${h/2} l-10 ${h/2} h${-(w-10)} z`:`M${x} ${y} l10 ${-h/2} h${w-10} v${h} h${-(w-10)} z`;
+  return `<path d="${p}" style="fill:var(${C})"/><text x="${dir==="r"?x+(w-10)/2:x+10+(w-10)/2}" y="${y+4.5}" text-anchor="middle" style="fill:var(--paper);font:700 12px var(--f-mono)">${s}</text>`;};
+function openSVG(){let s="";
+C="--s1";
+s+=`<rect class="ic" x="180" y="90" width="140" height="160" rx="5"/>`+T(272,168,"NE555","tt","middle")+T(272,186,"IC1","sb","middle");
+s+=T(186,134,"2 TRIG","pn")+T(186,164,"6 THR","pn")+T(186,194,"7 DIS","pn")+T(210,106,"8","pn","middle")+T(250,106,"4","pn","middle")+T(210,244,"1","pn","middle")+T(280,244,"5","pn","middle")+T(314,134,"3","pn","end");
+s+=W([[320,130],[334,130]])+T(338,134,"NC","pn");
+s+=W([[150,30],[150,190]])+W([[150,130],[180,130]])+W([[150,160],[180,160]])+W([[150,190],[180,190]])+J(150,130)+J(150,160);
+s+=W([[95,160],[150,160]])+J(95,160)+res(95,160,95,105,"R1 10k",{left:true})+res(95,105,95,52,"VR1 50k",{left:true,pot:true})+F(95,52,"+5V");
+s+=cap(95,160,95,226,"C1 1 µF",{left:true})+G(95,226);
+s+=W([[210,90],[210,72]])+W([[250,90],[250,72]])+W([[210,72],[250,72]])+J(230,72)+W([[230,72],[230,64]])+F(230,64,"+5V");
+s+=W([[210,250],[210,262]])+G(210,262)+W([[280,250],[280,262]])+cap(280,262,280,300,"C3 10 nF")+G(280,300);
+s+=W([[150,30],[370,30],[370,215]])+J(310,30)+TPm(310,30,"TP1 · TIM","middle",-11);
+C="--s2"; s+=res(370,215,430,215,"R2 10k",{below:true})+W([[430,215],[440,215]])+OP(440,200,"2D");
+s+=W([[440,185],[430,185],[430,160],[520,160],[520,200]])+W([[500,200],[560,200]])+J(520,200)+J(540,200)+TPm(540,200,"TP2");
+C="--s3"; s+=cap(560,200,620,200,"C2 47 µF")+T(578,192,"+","lb","middle")+W([[620,200],[880,200]])+J(660,200)+J(760,200)+J(800,200)+TPm(800,200,"TP3 · CLAMP");
+s+=W([[660,200],[660,226]])+`<path class="sym" d="M651 240 L669 240 L660 226 Z"/><line class="sym" x1="651" y1="226" x2="669" y2="226"/>`+W([[660,240],[660,290],[628,290]])+`<path class="fs" d="M618 290 l10 -5 l0 10 z"/>`+T(672,238,"D1 1N4007","lb");
+s+=F(610,250,"+5V")+res(610,250,610,330,"VR2 10k",{left:true})+G(610,330);
+s+=res(760,200,760,266,"R3 10k")+G(760,266);
+C="--s4"; s+=OPF(880,215,"2A")+W([[880,230],[865,230],[865,280]])+J(865,280)+res(865,280,865,345,"VR3 10k",{left:true,pot:true})+G(865,345);
+s+=res(865,280,960,280,"R6 10k",{below:true})+W([[960,280],[960,215]])+W([[940,215],[990,215]])+J(960,215)+J(975,215)+TPm(975,215,"TP4");
+C="--s5"; s+=W([[990,215],[990,200]])+res(990,200,1060,200,"R4 10k")+W([[1060,200],[1070,200]])+OP(1070,215,"2B");
+s+=W([[1070,230],[1050,230],[1050,350]])+J(1050,292)+`<circle cx="1050" cy="292" r="7" class="tpr" style="stroke:var(${C})"/>`+N(1062,296,"TP7 · REF","start");
+for(const [x,l] of [[1000,"F15"],[1050,"F14"],[1100,"F13"]]){s+=`<circle class="sym" cx="${x}" cy="355" r="5"/>`+T(x,380,l,"pn","middle");}
+s+=`<rect class="dsh" x="988" y="345" width="74" height="20" rx="9"/>`+T(990,424,"JP1: F15 PID · F14 REF · F13 VR4 · cap di F14–F15","sb");
+s+=W([[1105,355],[1136,355]])+`<path class="fs" d="M1144 355 l-10 -5 l0 10 z"/>`+F(1150,320,"+5V")+res(1150,320,1150,390,"VR4 B50K",{})+G(1150,390);
+s+=W([[1130,215],[1200,215]])+J(1160,215)+res(1160,215,1160,272,"R5 1k")+G(1160,272)+J(1182,215)+TPm(1182,215,"TP5");
+C="--s7"; s+=`<rect class="hdrb" x="690" y="420" width="70" height="54" rx="4"/>`+T(725,412,"J4","lb","middle")+T(697,444,"u","pn")+T(697,465,"GND","pn")+T(725,494,"K1 dari J8","sb","middle");
+s+=W([[760,440],[780,440]])+res(780,440,850,440,"R8 1k",{below:true})+W([[850,440],[870,440]]);
+s+=`<path class="sym" d="M870 431 L870 449 L888 440 Z"/><line class="sym" x1="888" y1="431" x2="888" y2="449"/>`+T(879,423,"D3 1N4007","lb","middle");
+s+=W([[888,440],[965,440],[965,355],[995,355]])+J(930,440)+res(930,440,930,500,"R9 10k")+G(930,500)+W([[760,462],[770,462]])+G(770,462);
+C="--s6"; s+=res(1200,215,1260,215,"R7 1k")+W([[1260,215],[1330,215]])+J(1280,215)+J(1305,215)+TPm(1305,215,"TP6");
+s+=W([[1280,215],[1280,238]])+`<path class="sym" d="M1271 254 L1289 254 L1280 238 Z"/><path class="sym" d="M1268 242 L1271 238 L1289 238 L1292 234"/>`+W([[1280,254],[1280,272]])+G(1280,272)+T(1268,262,"D2 4V7","lb","end");
+s+=`<rect class="hdrb" x="1330" y="196" width="46" height="74" rx="4"/>`+T(1353,188,"J3","lb","middle")+T(1336,219,"ENA","pn")+T(1336,239,"IN2","pn")+T(1336,259,"GND","pn");
+s+=W([[1376,215],[1410,215]])+W([[1376,235],[1410,235]])+W([[1376,255],[1410,255]]);
+s+=`<rect x="1410" y="170" width="86" height="120" rx="6" style="fill:var(--soft);stroke:var(--s6);stroke-width:2"/>`+T(1453,200,"L298N","tt","middle")+T(1416,219,"ENA","pn")+T(1416,239,"IN2","pn")+T(1416,259,"GND","pn")+T(1453,281,"IN1 ← 5V","pn","middle");
+s+=F(1453,140,"+12V")+W([[1453,140],[1453,170]]);
+s+=W([[1440,290],[1440,337]])+W([[1466,290],[1466,337]])+T(1432,316,"OUT1/2","pn","end");
+s+=`<circle cx="1453" cy="360" r="26" style="fill:var(--paper);stroke:var(--ink);stroke-width:2"/>`+T(1453,366,"M","tt","middle");
+return s;}
+{const rowT=(y,t,c)=>`<text x="12" y="${y}" style="fill:var(${c});font:700 13px var(--f-body);letter-spacing:.08em">${t}</text>`;
+let s=`<svg viewBox="0 0 1510 1690" role="img" aria-label="Skematik lengkap close loop">`;
+s+=rowT(18,"A · OPEN LOOP — PWM GENERATOR (papan bawah)","--s5")+`<g transform="translate(0,30)">${openSVG()}</g>`;
+s+=`<line x1="0" y1="548" x2="1510" y2="548" style="stroke:var(--line);stroke-width:1.5;stroke-dasharray:8 6"/>`;
+s+=rowT(572,"B · SENSOR RPM — EE-SX112 + LM2917N (setengah atas, baris 20–28)","--s2")+`<g transform="translate(0,566)">${sensorSVG("ar9")}</g>`;
+C="--s2"; s+=W([[959,925],[1000,925]])+TAG(1000,925,"PV → PID (C)","r");
+s+=`<polyline class="dsh" style="stroke-width:1.8" points="1453,416 1453,1048 40,1048 40,703 80,703"/>`+T(760,1042,"disk encoder di poros motor memotong celah EE-SX112 (sambungan mekanis)","sb","middle");
+s+=`<line x1="0" y1="1068" x2="1510" y2="1068" style="stroke:var(--line);stroke-width:1.5;stroke-dasharray:8 6"/>`;
+s+=rowT(1092,"C · PID ANALOG — 2× LM324 (setengah atas, baris 1–19)","--s6")+`<g transform="translate(0,1090)">${pidSVG()}</g>`;
+C="--s6"; s+=TAG(1185,1490,"u → J4 (A)","r");
+C="--s7"; s+=TAG(586,470,"u dari PID","r");
+schF.innerHTML=s+"</svg>";}
+
+{const M=`<defs><marker id="ahL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" style="fill:var(--muted)"/></marker></defs>`;
+const A=(pts,lab,lx,ly,d)=>`<g><polyline points="${pts.map(p=>p.join(",")).join(" ")}" style="fill:none;stroke:var(--muted);stroke-width:1.8${d?";stroke-dasharray:6 4":""}" marker-end="url(#ahL)"/>${lab?`<text x="${lx}" y="${ly}" text-anchor="middle" style="fill:var(--muted);font:600 11px var(--f-mono)">${lab}</text>`:""}</g>`;
+const V=k=>`var(${k})`;
+dgLoop.innerHTML=`<svg viewBox="0 0 1180 300" role="img" aria-label="Diagram blok close loop">${M}
+ ${box(10,110,110,56,"SP","VR15 · 0–4,9 V",V("--s0"))}
+ <circle cx="175" cy="138" r="18" style="fill:var(--paper);stroke:var(--s5);stroke-width:2"/><text x="175" y="143" text-anchor="middle" style="fill:var(--ink);font:700 15px var(--f-disp)">Σ</text>
+ <text x="150" y="126" style="fill:var(--muted);font:700 12px var(--f-mono)">+</text><text x="180" y="172" style="fill:var(--muted);font:700 12px var(--f-mono)">−</text>
+ ${box(240,110,130,56,"PID","P + I + D",V("--s6"))}
+ ${box(420,110,130,56,"J4 → REF","R8 · D3 · R9 · JP1",V("--s7"))}
+ ${box(600,110,140,56,"Komparator","PWM 50 Hz",V("--s5"))}
+ ${box(600,14,140,50,"NE555 + amp","sawtooth",V("--s1"))}
+ ${box(790,110,120,56,"L298N","H-bridge",V("--s6"))}
+ ${box(960,110,110,56,"Motor DC","+ disk",V("--s6"))}
+ ${box(960,226,110,56,"EE-SX112","pulsa 0–9 V",V("--s2"))}
+ ${box(600,226,140,56,"LM2917N","f → V",V("--s2"))}
+ ${A([[120,138],[155,138]])}${A([[193,138],[238,138]],"e",215,130)}${A([[370,138],[418,138]],"u",394,130)}${A([[550,138],[598,138]],"REF",574,130)}
+ ${A([[670,64],[670,108]],"ramp",700,90)}${A([[740,138],[788,138]],"PWM",764,130)}${A([[910,138],[958,138]],"OUT",934,130)}
+ ${A([[1015,166],[1015,224]],"mekanis",1052,200,1)}${A([[960,254],[742,254]],"SIG",851,246)}
+ ${A([[600,254],[175,254],[175,158]],"PV 0–5 V",390,246)}
+</svg>`;}
+{const tb=(id,head,rows)=>{document.getElementById(id).innerHTML=`<tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr>`+rows.map(r=>`<tr>${r.map((c,i)=>`<td${i<2?' class="mono"':''}>${c}</td>`).join("")}</tr>`).join("");};
+tb("tpF",["TP","Lubang","Node","Yang diharapkan saat close loop jalan"],[
+ ["TP1","Q9","Sawtooth 555","1,67 → 3,33 V, 50 Hz (sama seperti open loop)"],
+ ["TP4","P20","Output penguat","Ramp ≈ 0,5 → 4,4 V"],
+ ["TP7","G13","REF komparator","DC dari u lewat D3: ≈ 0,91 × (u − 0,6 V). Naik-turun sendiri saat beban berubah"],
+ ["TP6","E22","ENA ke L298N","PWM 0 ↔ 4,7 V, duty mengikuti REF"],
+ ["TP8","L25 (atas)","Pulsa opto","Kotak 0 ↔ 9 V, frekuensi ∝ RPM"],
+ ["TP9","L21 (atas)","PV","DC, harus mengejar SP"],
+ ["SP","M13 (atas)","SP","0 → ≈ 4,9 V sesuai VR15"],
+ ["TP11","I9 (atas)","Error e","≈ 0 V saat sudah steady"],
+ ["TP12–TP14","F4 · R4 · Q15 (atas)","P, I, D","Bertanda negatif. P ∝ e · I menetap di nilai yang menahan kecepatan · D hanya melonjak saat SP/beban berubah"],
+ ["u","X15 / J8 (atas)","u","DC positif yang cukup untuk menahan duty"]]);
+const R=(a,b,c,d,e)=>[a,b,c,d,e];
+document.getElementById("bomF").innerHTML=`<tr><th>Komponen</th><th>Open loop (bawah)</th><th>Sensor (atas)</th><th>PID (atas)</th><th>Total</th></tr>`+[
+ R("IC NE555 + soket DIP-8","IC1","—","—","1"),R("IC LM324 + soket DIP-14","IC2","—","IC5, IC6","3"),R("IC LM2917N + soket DIP-14","—","IC7","—","1"),
+ R("Resistor 10 kΩ","R1, R2, R3, R4, R6, R9","R49, R55","R31, R34–R36, R38, R41–R44, R47","18"),R("Resistor 1 kΩ","R5, R7, R8","—","—","3"),
+ R("Resistor 33 kΩ / 150 Ω / 470 Ω / 22 kΩ","—","R54 / R50 / R52 / R53","—","1 / 1 / 1 / 1"),R("Resistor 82 kΩ","—","—","R48","1"),
+ R("Kapasitor 100 nF","C4, C8","C35","C21, C22, C24","6"),R("Kapasitor 10 nF","C3","C33","—","2"),R("Kapasitor film 1 µF","C1","C34","—","2"),
+ R("Elco 47 µF 16 V","C2","—","—","1"),R("Elco 4,7 µF 50 V","—","—","C31","1"),R("Elco 10 µF 50 V","—","—","C32","1"),
+ R("Dioda 1N4007","D1, D3","—","—","2"),R("Zener 4V7 (1N750)","D2","—","—","1"),
+ R("Trimpot multiturn 3296W","VR1 50k, VR2 10k, VR3 10k","VR16 200k","VR11 50k, VR12 100k, VR13 100k","7"),
+ R("Potensio panel","VR4 B50K","—","VR15 B100K","2"),R("Optocoupler EE-SX112 + disk","—","1","—","1"),
+ R("Header 1 pin","—","—","J8, J9, J11, J13","4"),R("Header 2 pin","J1, J2, J4","J5, J10","JP2","6"),R("Header 3 pin","J3, JP1","—","J12","3"),R("Header 4 pin","—","J6","—","1"),
+ R("Jumper cap","JP1","—","JP2","2"),R("Header 1 pin (test point)","TP1–TP7, 3 GND","TP8, TP9","TP11–TP14","16"),
+ R("Modul L298N + motor DC 12 V","1","—","—","1"),R("Kabel / jumper","W1","K3, K4, W2, 4 kabel sensor","W3, K1, K7, snap baterai (− ke 2 titik, + ke B25), 3 kabel VR15","—")
+].map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map((c,i)=>`<td class="mono"${i===3?' style="font-weight:600"':''}>${c}</td>`).join("")}</tr>`).join("");
+const ol=(id,a)=>document.getElementById(id).innerHTML=a.map(x=>`<li>${x}</li>`).join("");
+ol("onF",["Uji open loop sendiri dulu: JP1 di F13–F14 (VR4), duty TP6 harus bisa 0 → 100%.","Kalibrasi sensor: VR4 maksimum, setel VR16 sampai TP9 = 5,00 V.","Uji PID tanpa K1: beri SP dari VR15 dan PV dari J10 (K7 ke L13), cek TP11 = SP − PV.","Matikan semua, sambung K1 (X15 → G10), pindahkan cap JP1 ke F14–F15.","Nyalakan ±9 V, 9 V, 5 V, lalu terakhir 12 V motor. Putar VR15: PV di TP9 harus mengikuti SP."]);
+ol("tuneF",["Setelan awal hasil simulasi (power mati, IC dicabut, ukur dengan ohmmeter): <b>VR11 = 15 kΩ</b> (Kp 1,5) antara H2–H3, <b>VR12 = 47 kΩ</b> antara P9–Q9, <b>VR13 = 5 kΩ</b> antara S13–R13.","Pasang cap JP2 dulu (I mati), nyalakan, set SP ≈ 3 V. PV akan naik tapi masih kurang dari SP.","Lepas cap JP2: PV harus naik menyamai SP dalam ≈ 1–2 detik, TP11 → ≈ 0 V.","Kalau PV berosilasi: kecilkan VR11 atau naikkan VR12 ke 68–100k (I lebih lemah). Kalau PV lama sekali mencapai SP: turunkan VR12 ke ≈ 33k. Kalau lambat: naikkan VR11.","Kalau overshoot: naikkan VR13 sedikit (5 → 10 kΩ).","Uji dengan menahan poros motor sebentar: duty di TP6 harus naik sendiri dan PV kembali ke SP."]);}
+
+
+/* ---------- J4 ---------- */
+{let s=`<svg viewBox="0 0 760 190" role="img" aria-label="Antarmuka J4 ke JP1">`;
+C="--s7"; s+=`<rect class="hdrb" x="20" y="60" width="74" height="56" rx="4"/>`+T(57,52,"J4","lb","middle")+T(28,84,"G10 u","pn")+T(28,106,"G11 GND","pn");
+s+=W([[94,80],[130,80]])+res(130,80,210,80,"R8 1 kΩ")+T(170,102,"G9–G5","pn","middle")+W([[210,80],[240,80]]);
+s+=`<path class="sym" d="M240 70 L240 90 L258 80 Z"/><line class="sym" x1="258" y1="70" x2="258" y2="90"/>`+T(249,62,"D3 1N4007","lb","middle")+T(249,112,"E9 → E13","pn","middle")+W([[258,80],[455,80]]);
+s+=J(360,80)+res(360,80,360,140,"R9 10 kΩ")+T(373,126,"E16–A16","pn")+G(360,140)+W([[74,106],[74,140]])+G(74,140);
+C="--s5"; for(const [x,l] of [[460,"F15 PID"],[540,"F14 REF"],[620,"F13 VR4"]]){s+=`<circle class="sym" cx="${x}" cy="80" r="5"/>`+T(x,62,l,"pn","middle");}
+s+=`<rect class="dsh" x="448" y="70" width="104" height="20" rx="8"/>`+T(492,112,"cap F14–F15","sb","middle");
+s+=W([[540,85],[540,140]])+N(550,145,"REF → LM324 pin 5 (TP7)","start")+W([[625,80],[680,80]])+T(686,84,"dari VR4","sb");
+schJ.innerHTML=s+"</svg>";}
+})();
+
+// ================= SISTEM =================
+{const S=k=>`var(${k})`;
+const da=(pts,lab,lx,ly)=>`<g><polyline points="${pts.map(p=>p.join(",")).join(" ")}" style="fill:none;stroke:var(--muted);stroke-width:1.8;stroke-dasharray:6 4" marker-end="url(#ah)"/>${lab?`<text x="${lx}" y="${ly}" text-anchor="middle" style="fill:var(--muted);font:600 11px var(--f-mono)">${lab}</text>`:""}</g>`;
+const sa=(pts,lab,lx,ly)=>`<g><polyline points="${pts.map(p=>p.join(",")).join(" ")}" style="fill:none;stroke:var(--muted);stroke-width:1.8" marker-end="url(#ah)"/>${lab?`<text x="${lx}" y="${ly}" text-anchor="middle" style="fill:var(--muted);font:600 11px var(--f-mono)">${lab}</text>`:""}</g>`;
+dgSys.innerHTML=`<svg viewBox="0 0 1000 350" role="img" aria-label="Blok sistem lengkap">${DEFS}
+ <rect x="270" y="40" width="250" height="300" rx="10" style="fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 4"/>
+ <text x="282" y="58" style="fill:var(--muted);font:700 11.5px var(--f-body);letter-spacing:.08em">PAPAN MASCOT PCB002</text>
+ ${box(20,70,170,64,"Catu daya","PSU 5/9 V · PSU 12 V · baterai 9 V",S("--s0"))}
+ ${box(300,70,190,64,"Open loop (bawah)","NE555 · LM324 · VR4",S("--s5"))}
+ ${box(620,70,150,64,"Modul L298N","H-bridge · 12 V",S("--s6"))}
+ ${box(830,70,150,64,"Motor DC","+ disk encoder",S("--s6"))}
+ ${box(300,240,190,64,"Sensor (atas)","LM2917N · IC7",S("--s2"))}
+ ${box(830,240,150,64,"EE-SX112","optocoupler slot",S("--s2"))}
+ ${box(20,240,170,64,"PID (atas, baris 1–19)","IC5 + IC6 (LM324)",S("--s4"))}
+ ${arr(190,92,298,92,"5 V → J1")}${arr(190,114,298,114,"9 V → J2",128)}
+ ${sa([[105,70],[105,22],[695,22],[695,68]],"12 V langsung ke terminal +12V / GND L298N",400,16)}
+ ${arr(490,102,618,102,"J3 · ENA, IN2, GND")}${arr(770,102,828,102,"OUT")}
+ ${sa([[905,134],[905,238]],"disk di celah",948,190)}
+ ${arr(828,272,492,272,"4 kabel → J6 (K, A, C, E)")}
+ ${sa([[395,134],[395,238]],"K3, K4",428,190)}
+ ${da([[300,282],[192,282]],"J10 → J9",246,276)}
+ ${da([[150,240],[150,200],[330,200],[330,136]],"J8 u → J4",240,194)}
+ ${da([[60,134],[60,238]],"baterai −9 V → J11, J13",116,190)}
+</svg>`;}
+
+// ================= BLOK & TABEL =================
+{const blk=(c,t,p,f,li)=>`<div class="blk" style="--c:var(${c})"><h3><i></i>${t}</h3><p>${p}</p>${f?`<div class="f">${f}</div>`:""}${li?`<ul>${li.map(x=>`<li>${x}</li>`).join("")}</ul>`:""}</div>`;
+blocksS.innerHTML=[
+ blk("--s0","Daya 9 V","+9 V lewat R50 ke pin 9 dan 8. Zener internal menahan pin 9 sehingga PV tidak ikut naik-turun dengan PSU. LED dan pull-up opto ambil +9 V langsung (jumper W2).","V(pin 9) ≈ 7,6 V · I(R50) = (9 − 7,6) / 150 ≈ 9 mA",["C35 dekat pin 9","Tidak ada +5 V di papan sensor"]),
+ blk("--s2","Optocoupler EE-SX112","LED + phototransistor dalam satu slot. Disk menutup celah → SIG HIGH, celah terbuka → SIG LOW.","I_LED = (9 − 1,2) / 470 Ω ≈ 16,6 mA (maks 50 mA)",["R53 22 kΩ pull-up SIG ke 9 V","Cek TP8: LOW < 0,5 V, HIGH ≈ 9 V"]),
+ blk("--s4","Referensi TACH−","Ambang komparator input. Pulsa 0–9 V selalu melewati 2,1 V, jadi tidak perlu kapasitor kopling.","V(pin 11) = 9 × 10k / (33k + 10k) ≈ 2,1 V",["H21 (pin 11) bersebelahan dengan I21 (GND)"]),
+ blk("--s1","Charge pump","C33 memompa muatan tiap pulsa. VR16 mengubah arus rata-ratanya jadi tegangan, C34 meratakan ripple.","PV = V(pin 9) × f × C33 × VR16 → f = 400 Hz, C33 = 10 nF: VR16 ≈ 165 kΩ",["Frekuensi lebih tinggi → C33 lebih kecil","C34 lebih besar → PV halus tapi lambat"]),
+ blk("--s5","Output PV","Op-amp internal sebagai follower (pin 5 = pin 10). PV 0–5 V siap dibaca multimeter atau masuk ke PID.","PV maks = 5,00 V pada VR4 maksimum",["TP9 di L21, J10 di B24/B25"])].join("");
+blocksP.innerHTML=[
+ blk("--s5","Error (IC5D)","Penguat diferensial gain 1. Saat motor diam, e = SP.","e = SP − PV",["R41–R44 10 kΩ","SP maks ≈ 4,9 V dari R48 + VR15","TP11 (I9) = e"]),
+ blk("--s4","P (IC5A)","Inverting dengan gain VR11/R31.","P = −Kp·e · Kp = VR11 / 10 kΩ (0 … 5)",["TP12 (F4) = P (negatif)"]),
+ blk("--s1","I (IC5C)","Integrator VR12 dan C31. JP2 mengosongkan C31 saat uji.","I = −Ki∫e dt · Ki = 1 / (VR12 × 4,7 µF) ≈ 4,5 /s di 47 kΩ",["C31 elco: + ke INM (S8), − ke output I (U8)","TP13 (R4) = I (negatif)","Lepas cap JP2 saat dipakai"]),
+ blk("--s3","D (IC6A)","Differensiator C32 dengan feedback VR13. R47 membatasi gain frekuensi tinggi (maks VR13/R47).","D = −Kd·de/dt · Kd = VR13 × 10 µF",["C32 elco 10 µF: + ke R47, − ke pin 2 IC6. Kalau D bikin goyang, VR13 diputar ke minimum (PI saja)","TP14 (Q15) = D (negatif)"]),
+ blk("--s6","Σ (IC6B)","Penjumlah inverting gain 1. Minus dari P, I, D saling meniadakan dengan minus Σ.","u = −(P + I + D) = Kp·e + Ki∫e + Kd·de/dt",["R34, R35, R36, R38 10 kΩ","u keluar di J8 (X15)","IC6 C, D dan IC5 B dimatikan"]),
+ blk("--s7","Antarmuka J4 (papan open loop)","R8 membatasi arus, D3 memblok u negatif, R9 pull-down. u menggantikan VR4 sebagai REF.","REF ≈ 0,91 × (u − 0,6 V) untuk u > 0,6 V",["JP1 cap di F14–F15 untuk close loop"])].join("");
+const tb=(id,head,rows)=>{document.getElementById(id).innerHTML=`<tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr>`+rows.map(r=>`<tr>${r.map((c,i)=>`<td${i===0||i===head.length-1&&/^[A-Z]\d/.test(c)?' class="mono"':''}>${c}</td>`).join("")}</tr>`).join("");};
+tb("bomS",["Ref","Komponen","Jml","Lubang"],[
+ ["IC7","LM2917N (DIP-14) + soket DIP-14","1","pin 1 K24 … pin 7 E24 · pin 8 E21 … pin 14 K21"],
+ ["OPT1","Optocoupler slot EE-SX112 + disk encoder","1","dikabel ke J6"],
+ ["R52","Resistor <b>470 Ω</b> (LED dari +9 V)","1","N26–N22"],
+ ["R53","Resistor <b>22 kΩ</b> (pull-up ke +9 V)","1","M26–M22"],
+ ["R55, R49","Resistor 10 kΩ","2","R55 H20–L20 · R49 D22–D26"],
+ ["R54","Resistor 33 kΩ","1","G20–G16"],
+ ["R50","Resistor 150 Ω","1","F20–F16"],
+ ["VR16","Trimpot multiturn 3296W 200 kΩ (kode 204)","1","1 = F27 · W = E27 · 3 = D27"],
+ ["C33","Kapasitor keramik 10 nF (final sesuai frekuensi)","1","J26–J28"],
+ ["C34","Kapasitor film 1 µF","1","H26–H28"],
+ ["C35","Kapasitor keramik 100 nF","1","E20–E19"],
+ ["J5, J10","Pin header 2 pin","2","J5 B21/B20 · J10 B24/B25"],
+ ["J6","Pin header 4 pin","1","O27 K · N27 A · M27 C · L27 E"],
+ ["TP8, TP9","Pin header tunggal","2","TP8 L25 · TP9 L21"],
+ ["K3, K4","Kabel jumper berisolasi","2","lihat Sambungan ke Open Loop"],
+ ["W2","Kawat jumper berisolasi (+9 V ke opto)","1","O16 ↔ O22, plus jalur O16–G16"],
+ ["—","Kabel 4 urat ke EE-SX112, kawat tembaga telanjang untuk rail","—","—"]]);
+tb("wireS",["Kabel","Dari","Ke","Fungsi"],[
+ ["K3","J2 L23 (+9V) · bawah","J5 B21 · atas","Suplai LM2917N"],
+ ["K4","J2 L24 (GND) · bawah","J5 B20 · atas","GND bersama"],
+ ["Sensor","EE-SX112 A, K, C, E","J6 O27, N27, M27, L27","Pulsa kecepatan"],
+ ["K7","J10 B24 PV · atas","J9 L13 · atas","PV 0–5 V ke error amp (kabel pendek)"],
+ ["K1","J8 X15 u · atas","J4 G10 · bawah","u ke REF komparator (GND sudah satu)"],
+ ["−9 V","Baterai 9 V kutub − (kabel hitam snap, dicabang 2)","J11 H6 dan J13 P18 · atas","Suplai negatif IC5, IC6"],
+ ["GND bat","Baterai 9 V kutub + (kabel merah snap)","J10 B25 (GND) · atas","Kutub + jadi titik 0 V"],
+ ["VR15","Potensio panel B100K (kaki 1, wiper, kaki 3)","J12: M15, M13, M14 · atas","Setpoint 0 – 4,9 V"]]);
+tb("l298",["Pin modul","Sambung ke"],[
+ ["ENA","J3 D23 (jumper cap ENA dilepas)"],["IN1","Pin 5 V bekas jumper ENA di modul"],["IN2","J3 C23"],["GND","J3 B23 + GND PSU 12 V"],["+12V","PSU 12 V (jumper 12V-EN terpasang)"],["OUT1, OUT2","Motor DC"]]);
+tb("bomP",["Ref","Komponen","Jml"],[
+ ["IC5, IC6","LM324 + soket DIP-14 (keduanya diputar 180°)","2"],["R31, R34, R35, R36, R38, R41–R44, R47","Resistor 10 kΩ","10"],["R48","Resistor 82 kΩ","1"],["VR11","Trimpot multiturn 3296W 50 kΩ","1"],["VR12, VR13","Trimpot multiturn 3296W 100 kΩ","2"],
+ ["VR15","Potensio panel B100K + kabel 3 urat ke J12","1"],["C31","Elco 4,7 µF 50 V (+ di S8, − di U8)","1"],["C32","Elco 10 µF 50 V Ø 5 mm (+ di P11, − di P12)","1"],["C21, C22, C24","Kapasitor keramik 100 nF","3"],
+ ["JP2","Pin header 2 pin + jumper cap","1"],["J12","Pin header 3 pin (VR15)","1"],["J8, J9, J11, J13","Pin header 1 pin (u · PV · −9V · −9V)","4"],["BAT","Baterai 9 V + snap/klip baterai","1"],["TP11–TP14","Pin header tunggal","4"],["W3","Kawat jumper berisolasi O8 ↔ O12","1"]]);
+tb("bomJ",["Ref","Komponen","Lubang"],[
+ ["J4","Pin header 2 pin","G10 PID · G11 GND"],["R8","Resistor 1 kΩ","G9–G5"],["D3","Dioda 1N4007","anoda E9 · katoda (gelang) E13"],["R9","Resistor 10 kΩ","E16–A16"],["JP1","Pin header 3 pin + jumper cap","F13 VR4 · F14 REF · F15 PID"]]);
+const ol=(id,a)=>document.getElementById(id).innerHTML=a.map(x=>`<li>${x}</li>`).join("");
+ol("preS",["<b>5 V dihapus.</b> Cabut J7 dan kabel K5/K6, buang jalur R25–O25, O22–O25, R25–R27, Q27–Q28. Pasang jalur O16–G16 dan jumper W2 O16 ↔ O22 supaya kaki atas R52/R53 dapat +9 V.","<b>R52 = 470 Ω, R53 = 22 kΩ.</b> Kalau R52 220 Ω tetap dipakai di 9 V, arus LED ≈ 35 mA dan resistornya panas. R53 dinaikkan supaya SIG tetap turun di bawah ambang 2,1 V.","Solder IC7 lewat soket. Pasang IC paling akhir, setelah uji bunyi per net (tab Layout Sensor) lolos.","Cek H21–I21 dan G21–H21 tidak terhubung timah. Ketiganya beda net (PV, TREF, GND).","Setelah daya masuk tanpa IC: F21 ≈ 9 V, H21 ≈ 2,1 V, N22 dan M22 ≈ 9 V.","Pasang IC7, putar VR4 maksimum, ukur frekuensi TP8, baru pilih C33 dan setel VR16 sampai TP9 = 5,00 V."]);
+ol("onS",["Nyalakan PSU 5 V dan 9 V dulu, motor belum diberi 12 V. Cek TP6 (E22) sudah PWM.","Beri 12 V ke L298N. Motor berputar sesuai VR4.","Cek TP8: pulsa 0–9 V yang makin rapat saat VR4 dinaikkan.","Cek TP9: PV naik sebanding kecepatan. Kalibrasi 5,00 V di VR4 maksimum.","Matikan dengan urutan terbalik: 12 V dulu, baru 9 V dan 5 V."]);
+ol("noteP",["Layout lubangnya ada di Layout → <b>Close Loop (atas)</b>, tab PID 0–6: baris 1–19 setengah atas, satu papan dengan sensor. Netlist setengah atas sudah dicek: 0 short, 0 net putus, jumper hanya W2 dan W3.","Urutan rakit untuk uji besok: daya → input → error → P → I → D → Σ. Tiap tahap bisa diuji dengan DC sebelum lanjut.","TP12, TP13, TP14 memang negatif (stage inverting). Yang harus positif hanya u di TP15.","PID butuh −9 V. Karena PSU tidak punya output negatif, pakai baterai 9 V: kutub − ke J11 (H6) dan J13 (P18), kutub + ke GND (B25, pin GND J10). Cek N7 dan U19 ≈ −9 V. +9 V dan GND sudah tersambung lewat jalur sensor.","Jembatan timah F13–F14 di papan open loop harus dibuka dan diganti header 3 pin + jumper cap, supaya bisa pindah ke posisi PID (F14–F15).","Uji tiap blok PID dengan input DC dulu (misalnya dari VR15) sebelum disambung ke J4.","Tuning berurutan: P dulu (VR12 maksimum = I paling lemah, VR13 minimum = D mati), lalu turunkan VR12 sampai error hilang, terakhir naikkan VR13 kalau ada overshoot."]);}
+
+</script>
+<script>
+// ================= MODEL 3D =================
+(function(){
+let inited=false, running=false, R3, SC, CAM, CTL, groups=[], labels=[], runsG, cablesG, curFocus="all";
+const G3=1.8, BT=0.63;
+const SEC_NAME={open:"Open loop",sens:"Sensor",pid:"PID",mech:"Motor, driver & catu daya"};
+function P3(half,x,y){ return half==="top" ? new THREE.Vector3(24-x,0,28-y) : new THREE.Vector3(x,0,28+G3+(y-1)); }
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s);});}
+function mat(c,o={}){return new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.55,metalness:.05},o));}
+const MET=()=>mat("#c9ced3",{metalness:.7,roughness:.3});
+const GOLD=()=>mat("#e5c35b",{metalness:.8,roughness:.3});
+function cyl(r,h,m,seg=18){return new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),m);}
+function box(w,h,d,m){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);}
+function lead(g,a,b){ // straight thin wire a->b
+  const d=new THREE.Vector3().subVectors(b,a), L=d.length(); if(L<1e-3) return;
+  const m=cyl(.06,L,MET(),8); m.position.copy(a).addScaledVector(d,.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()); g.add(m);}
+function textTex(lines,w,h,bg,fg,font){
+  const c=document.createElement("canvas"); c.width=w; c.height=h; const x=c.getContext("2d");
+  if(bg){x.fillStyle=bg; x.fillRect(0,0,w,h);} x.fillStyle=fg; x.textAlign="center"; x.textBaseline="middle";
+  x.font=font||`bold ${Math.floor(h/(lines.length+0.6))}px JetBrains Mono, monospace`;
+  lines.forEach((t,i)=>x.fillText(t,w/2,h*(i+1)/(lines.length+1)));
+  const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;}
+function sprite(text,col){
+  const w=Math.max(256,text.length*27+40); const t=textTex([text],w,72,"rgba(255,255,255,.88)",col||"#1a1a1a","bold 44px JetBrains Mono, monospace");
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true})); s.scale.set(3.2*w/256,0.9,1); s.renderOrder=10; return s;}
+function along(g,mesh,a,b,yh){ // place mesh (axis Y) along a->b horizontally at height yh
+  const d=new THREE.Vector3().subVectors(b,a); d.y=0; const mid=new THREE.Vector3().addVectors(a,b).multiplyScalar(.5); mid.y=yh;
+  mesh.position.copy(mid); mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize()); g.add(mesh); return d.length();}
+
+function buildComp(c,half,sec){
+  const g=new THREE.Group(); const ps=c.pins.map(p=>P3(half,p[0],p[1])); const T=c.typ;
+  g.userData={info:`${c.id} · ${c.val}`, pins:c.pins.map(p=>`${p[3]}→${LET[24-p[0]]+p[1]}`).join("  "), sec, note:c.note||""};
+  const a=ps[0], b=ps[1]||ps[0], mid=new THREE.Vector3().addVectors(a,b).multiplyScalar(.5);
+  const dist=a.distanceTo(b);
+  if(T==="res"||T==="dio"||T==="zen"){
+    const h=.45, L=Math.max(.9,Math.min(dist-.7, T==="res"?2.4:1.9));
+    const col=T==="res"?"#e6cf9c":T==="dio"?"#222":"#e79a55";
+    const body=cyl(T==="res"?.33:.28,L,mat(col)); along(g,body,a,b,h);
+    const dir=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
+    const e1=mid.clone().addScaledVector(dir,-L/2).setY(h), e2=mid.clone().addScaledVector(dir,L/2).setY(h);
+    lead(g,a.clone().setY(-.1),a.clone().setY(h)); lead(g,a.clone().setY(h),e1); lead(g,b.clone().setY(-.1),b.clone().setY(h)); lead(g,b.clone().setY(h),e2);
+    if(T==="res"){ ["#8d5524","#111","#e6731a"].forEach((bc,i)=>{const r=cyl(.345,.12,mat(bc)); along(g,r,mid.clone().addScaledVector(dir,-L/2+.35+i*.3),mid.clone().addScaledVector(dir,-L/2+.36+i*.3),h);}); }
+    else { const kFirst=c.pins[0][3]==="K"; const bp=mid.clone().addScaledVector(dir,(kFirst?-1:1)*(L/2-.25)); const r=cyl(.29,.18,mat(T==="dio"?"#d8dde2":"#111")); along(g,r,bp.clone().addScaledVector(dir,-.09),bp.clone().addScaledVector(dir,.09),h); }
+  } else if(T==="capc"){
+    const d=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
+    const disc=cyl(.62,.22,mat("#e3a52a"),24); disc.position.copy(mid).setY(1.05); disc.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(-d.z,0,d.x)); g.add(disc);
+    lead(g,a.clone().setY(-.1),a.clone().setY(.5)); lead(g,a.clone().setY(.5),mid.clone().addScaledVector(d,-.25).setY(.9));
+    lead(g,b.clone().setY(-.1),b.clone().setY(.5)); lead(g,b.clone().setY(.5),mid.clone().addScaledVector(d,.25).setY(.9));
+  } else if(T==="capf"){
+    const bx=box(1,1.2,.75,mat("#b8322a")); const d=new THREE.Vector3().subVectors(b,a).setY(0).normalize();
+    bx.scale.x=dist+.45; bx.position.copy(mid).setY(.75); bx.rotation.y=-Math.atan2(d.z,d.x); g.add(bx);
+    lead(g,a.clone().setY(-.1),a.clone().setY(.2)); lead(g,b.clone().setY(-.1),b.clone().setY(.2));
+  } else if(T==="cape"||T==="capb"){
+    const r=T==="cape"?.95:.55, h=T==="cape"?2.4:1.3;
+    const cy=cyl(r,h,mat(T==="cape"?"#1f3f8f":"#2e7d5b"),28); cy.position.copy(mid).setY(h/2+.15); g.add(cy);
+    if(T==="cape"){ const neg=ps[c.pins.findIndex(p=>p[3]==="-")]; const s=cyl(.2,h*.98,mat("#d6dbe2")); const dd=new THREE.Vector3().subVectors(neg,mid).setY(0).normalize();
+      s.position.copy(mid).addScaledVector(dd,r-.12).setY(h/2+.15); g.add(s); }
+    const top=cyl(r*.98,.04,MET(),28); top.position.copy(mid).setY(h+.17); g.add(top);
+    ps.forEach(p=>lead(g,p.clone().setY(-.1),p.clone().setY(.2)));
+  } else if(T==="dip"){
+    const xs=ps.map(p=>p.x), zs=ps.map(p=>p.z), x0=Math.min(...xs),x1=Math.max(...xs),z0=Math.min(...zs),z1=Math.max(...zs);
+    const cx=(x0+x1)/2, cz=(z0+z1)/2, w=x1-x0, d=z1-z0, longX=w>d;
+    const sock=box(w+1.2,.32,d+1.2,mat("#3a3f45")); sock.position.set(cx,.16,cz); g.add(sock);
+    const bw=longX?w+.9:w-.45, bd=longX?d-.45:d+.9;
+    const body=box(bw,.75,bd,mat("#1d2024",{roughness:.8})); body.position.set(cx,.32+.375,cz); g.add(body);
+    ps.forEach((p,i)=>{const lg=box(.22,.6,.22,MET()); lg.position.set(p.x,.38,p.z); g.add(lg);});
+    // notch at end of pin1 & pin14
+    const p1=ps[0], p14=ps[ps.length-1]; const em=new THREE.Vector3().addVectors(p1,p14).multiplyScalar(.5);
+    const inward=new THREE.Vector3(cx-em.x,0,cz-em.z).normalize();
+    const notch=cyl(.32,.04,mat("#555"),20); notch.position.copy(em).addScaledVector(inward,.35).setY(1.09); g.add(notch);
+    const dot=cyl(.13,.04,mat("#ffffff"),14); dot.position.copy(p1).addScaledVector(new THREE.Vector3(cx-p1.x,0,cz-p1.z).normalize(),.75).setY(1.09); g.add(dot);
+    const lt=textTex([c.id,c.val],512,160,null,"#e8e8e8","bold 58px JetBrains Mono, monospace");
+    const lw=longX?bw*.8:bd*.8, lh=lw*160/512;
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(lw,lh),new THREE.MeshBasicMaterial({map:lt,transparent:true}));
+    pl.rotation.x=-Math.PI/2; if(!longX) pl.rotation.z=Math.PI/2; pl.position.set(cx,1.08,cz); g.add(pl);
+  } else if(T==="pot"&&c.body==="trim"){
+    const pa=ps[0], pb=ps[ps.length-1], m=new THREE.Vector3().addVectors(pa,pb).multiplyScalar(.5), d=new THREE.Vector3().subVectors(pb,pa).setY(0).normalize();
+    const bx=box(3.7,2.0,1.9,mat("#2a62c9")); bx.position.copy(m).setY(1.05); bx.rotation.y=-Math.atan2(d.z,d.x); g.add(bx);
+    const sc=cyl(.38,.3,mat("#d9b24a",{metalness:.6}),20); sc.position.copy(m).addScaledVector(d,-1.25).setY(2.15); g.add(sc);
+    const sl=box(.6,.08,.1,mat("#6b5314")); sl.position.copy(sc.position).setY(2.32); g.add(sl);
+    ps.forEach(p=>lead(g,p.clone().setY(-.1),p.clone().setY(.1)));
+  } else if(T==="pot"){
+    const pm=ps[1]||ps[0]; const out=new THREE.Vector3(half==="top"?-1:1,0,0);
+    const bodyC=new THREE.Vector3().copy(pm).addScaledVector(out,1.4).setY(1.6);
+    const bd=cyl(2.5,1.6,mat("#7d8791",{metalness:.4}),32); bd.position.copy(bodyC); bd.rotation.z=Math.PI/2; g.add(bd);
+    const sh=cyl(.6,3.2,MET(),20); sh.position.copy(bodyC).addScaledVector(out,2.3); sh.rotation.z=Math.PI/2; g.add(sh);
+    const kn=cyl(1.4,1.8,mat("#24292e"),28); kn.position.copy(bodyC).addScaledVector(out,4.2); kn.rotation.z=Math.PI/2; g.add(kn);
+    ps.forEach(p=>lead(g,p.clone().setY(-.1),new THREE.Vector3().copy(p).addScaledVector(out,.6).setY(1.0)));
+  } else if(T==="hdr"){
+    const xs=ps.map(p=>p.x), zs=ps.map(p=>p.z);
+    const base=box(Math.max(...xs)-Math.min(...xs)+.95,.6,Math.max(...zs)-Math.min(...zs)+.95,mat("#15181b"));
+    base.position.set((Math.max(...xs)+Math.min(...xs))/2,.3,(Math.max(...zs)+Math.min(...zs))/2); g.add(base);
+    ps.forEach(p=>{const pin=box(.25,2.6,.25,GOLD()); pin.position.set(p.x,1.0,p.z); g.add(pin);});
+    if(c.id==="JP1"||c.id==="JP2"){const capx=box(.9,.9,1.9,mat("#c62828")); const p=c.id==="JP1"?ps.slice(1,3):ps; const m=new THREE.Vector3().addVectors(p[0],p[p.length-1]).multiplyScalar(.5);
+      const d=new THREE.Vector3().subVectors(p[p.length-1],p[0]); capx.position.copy(m).setY(1.95); capx.rotation.y=Math.abs(d.x)>Math.abs(d.z)?Math.PI/2:0; g.add(capx);}
+  } else if(T==="tp"||T==="tpg"){
+    const p=ps[0]; const pin=box(.25,2.2,.25,GOLD()); pin.position.set(p.x,.95,p.z); g.add(pin);
+    const col=T==="tpg"?"#111":((TP_TOP[c.id]||TP[c.id]||{}).c||"#333");
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.42,.09,8,24),mat(col)); ring.rotation.x=Math.PI/2; ring.position.set(p.x,.12,p.z); g.add(ring);
+  }
+  g.traverse(o=>{if(o.isMesh){o.material=o.material.clone(); o.userData.baseOpacity=o.material.opacity;}});
+  const lb=sprite(c.id); const top=new THREE.Box3().setFromObject(g); lb.position.set((top.min.x+top.max.x)/2,top.max.y+.7,(top.min.z+top.max.z)/2);
+  lb.userData.sec=sec; labels.push(lb);
+  return g;
+}
+function boardTex(bottom){
+  const S=36, X0=-1.6, X1=25.6, Z0=-1.2, Z1=28+G3+28;
+  const W=Math.round((X1-X0)*S), H=Math.round((Z1-Z0)*S);
+  const c=document.createElement("canvas"); c.width=W; c.height=H; const x=c.getContext("2d");
+  const toPx=(X,Z)=>[(X-X0)*S, bottom?(Z1-Z)*S:(Z-Z0)*S];
+  x.fillStyle=bottom?"#c98f4f":"#cfa26a"; x.fillRect(0,0,W,H);
+  const [sx,sy0]=toPx(X0,27.55), [,sy1]=toPx(X0,28+G3-.55); x.fillStyle="rgba(60,30,5,.16)"; x.fillRect(0,Math.min(sy0,sy1),W,Math.abs(sy1-sy0));
+  for(const half of ["top","bot"]) for(let xx=0;xx<25;xx++) for(let y=1;y<=28;y++){
+    const p=P3(half,xx,y), [px,py]=toPx(p.x,p.z);
+    x.beginPath(); x.arc(px,py,S*(bottom?.36:.3),0,7); x.fillStyle=bottom?"#d99a52":"#c38c52"; x.fill();
+    x.beginPath(); x.arc(px,py,S*.13,0,7); x.fillStyle="#2e1b09"; x.fill();}
+  if(!bottom){
+    x.fillStyle="#3b2410"; x.font=`bold ${Math.round(S*.42)}px JetBrains Mono, monospace`; x.textAlign="center"; x.textBaseline="middle";
+    for(let X=0;X<25;X++){ const [px,py]=toPx(X,28+G3*.5-.33); x.save(); x.translate(px,py-S*.25); x.rotate(Math.PI); x.fillText(LET[X],0,0); x.restore();
+      const [qx,qy]=toPx(X,28+G3*.5+.33); x.fillText(LET[24-X],qx,qy+S*.25);}
+    for(let y=1;y<=28;y++){ const pt=P3("top",0,y), pb=P3("bot",0,y); const [ax,ay]=toPx(-1,pt.z); x.save(); x.translate(ax,ay); x.rotate(Math.PI); x.fillText(y,0,0); x.restore();
+      const [bx,by]=toPx(-1,pb.z); x.fillText(y,bx,by);}
+  }
+  const t=new THREE.CanvasTexture(c); t.anisotropy=8; return {t,X0,X1,Z0,Z1};
+}
+// ---------- off-board: PSU, L298N, motor + disk + opto, VR15, wiring ----------
+let spinG=null, beam=null, spinOn=true, NSLOT=12;
+const TY=-4; // meja
+function buildExternal(){
+  const mk=(sec,info,pins,note)=>{const g=new THREE.Group(); g.userData={info,pins:pins||"",sec,note:note||""}; return g;};
+  const fin=g=>{g.traverse(o=>{if(o.isMesh){o.material=o.material.clone(); o.userData.baseOpacity=1;}}); groups.push(g); SC.add(g); return g;};
+  const lab=(t,p,sec)=>{const s=sprite(t,"#7a2e00"); s.scale.multiplyScalar(1.4); s.position.copy(p); s.userData.sec=sec; labels.push(s); SC.add(s);};
+  // meja + standoff papan
+  const table=new THREE.Mesh(new THREE.PlaneGeometry(140,120),new THREE.MeshStandardMaterial({color:"#9aa3ab",roughness:.95,transparent:true,opacity:.35}));
+  table.rotation.x=-Math.PI/2; table.position.set(32,TY,28); SC.add(table);
+  [[-1,-.6],[25,-.6],[-1,57.2],[25,57.2]].forEach(([x,z])=>{const s=cyl(.5,TY*-1-BT,mat("#c9a227",{metalness:.7})); s.position.set(x,(TY-BT)/2,z); SC.add(s);});
+  // ===== papan sensor (Mascot PCB002 kedua) + sensor di pojok + motor =====
+  const SX=31; // geser X papan sensor
+  const sbG=fin(mk("mech","Papan sensor (Mascot PCB002 kedua)","Sensor opto di pojok · motor dibaut ke papan ini","Pojok papan dekat J6 papan utama"));
+  {const tt=boardTex(false), tb=boardTex(true), Wd=tt.X1-tt.X0, Hd=tt.Z1-tt.Z0, mx=(tt.X0+tt.X1)/2+SX, mz=(tt.Z0+tt.Z1)/2;
+   const e=box(Wd,BT,Hd,mat("#b8874f")); e.position.set(mx,-BT/2,mz); sbG.add(e);
+   const p1=new THREE.Mesh(new THREE.PlaneGeometry(Wd,Hd),new THREE.MeshStandardMaterial({map:tt.t,roughness:.8})); p1.rotation.x=-Math.PI/2; p1.position.set(mx,.002,mz); sbG.add(p1);
+   const p2=new THREE.Mesh(new THREE.PlaneGeometry(Wd,Hd),new THREE.MeshStandardMaterial({map:tb.t,roughness:.8})); p2.rotation.x=Math.PI/2; p2.position.set(mx,-BT-.002,mz); sbG.add(p2);
+   [[SX-1,-.6],[SX+25,-.6],[SX-1,57.2],[SX+25,57.2]].forEach(([x,z])=>{const st=cyl(.5,TY*-1-BT,mat("#c9a227",{metalness:.7})); st.position.set(x,(TY-BT)/2,z); sbG.add(st);});}
+  lab("Papan sensor",new THREE.Vector3(SX+12,1.5,30),"mech");
+  // sensor EE-SX112: K,C baris ujung (Z=0), A,E baris kedua (Z=1); K,A kolom tepi (X=SX), C,E 3 lubang ke dalam
+  const SP={K:[SX,0],C:[SX+3,0],A:[SX,1],E:[SX+3,1]};
+  const ax=SX+1.5, sz=.5, gap=1.2, hB=2.6;
+  const cy=hB+6.35, cz=sz; // pusat poros: titik cahaya + radius tengah jalur slot
+  const sen=fin(mk("mech","Sensor opto slot EE-SX112 (di pojok papan sensor)","K, A, C, E → J6 (O27, N27, M27, L27)","K & A = sisi LED (kolom tepi), C & E = sisi fototransistor. K & C di baris paling ujung"));
+  [-1,1].forEach(sg=>{const t=box(1.8,3.9,2.6,mat("#1e2428")); t.position.set(ax+sg*(gap/2+.9),1.95,sz); sen.add(t);});
+  const br=box(gap+.02,.7,2.6,mat("#1e2428")); br.position.set(ax,.35,sz); sen.add(br);
+  Object.values(SP).forEach(([x,z])=>lead(sen,new THREE.Vector3(x,-.6,z),new THREE.Vector3(x,.1,z)));
+  const lb2=(t,x,z)=>{const s2=sprite(t,"#1a1a1a"); s2.scale.multiplyScalar(.45); s2.position.set(x,4.5,z); s2.userData.sec="mech"; labels.push(s2); SC.add(s2);};
+  Object.entries(SP).forEach(([n,[x,z]])=>lb2(n,x+(x===SX?-.9:.9),z));
+  lab("Sensor opto",new THREE.Vector3(ax,6.2,sz+4.5),"mech");
+  beam=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,gap+.2,10),new THREE.MeshBasicMaterial({color:"#ff2a2a",transparent:true,opacity:.9}));
+  beam.rotation.z=Math.PI/2; beam.position.set(ax,hB,sz); SC.add(beam);
+  // motor di atas papan sensor, poros ke arah −X, disk masuk celah sensor dari atas
+  const m0=ax+4.1, mL=19.7, mc=m0+mL/2;
+  const mot=fin(mk("mech","Motor DC 12 V","OUT1/OUT2 L298N → terminal motor","Dibaut ke papan sensor pakai bracket/klem motor. Tinggi poros ≈ 22,7 mm di atas papan"));
+  const body=cyl(4.9,mL,mat("#b9bec4",{metalness:.3,roughness:.4}),40); body.rotation.z=Math.PI/2; body.position.set(mc,cy,cz); mot.add(body);
+  const cap1=cyl(4.95,1.2,mat("#30363d"),40); cap1.rotation.z=Math.PI/2; cap1.position.set(m0+mL+.6,cy,cz); mot.add(cap1);
+  const bush=cyl(1.4,.8,mat("#c9a227",{metalness:.7}),24); bush.rotation.z=Math.PI/2; bush.position.set(m0-.4,cy,cz); mot.add(bush);
+  const TX=m0+mL+1.3; [cy+2.2,cy-2.2].forEach(y=>{const t=box(.3,.9,.6,mat("#e5c35b",{metalness:.8})); t.position.set(TX,y,cz); mot.add(t);});
+  [m0+4,m0+mL-4].forEach(x=>{const cl=new THREE.Mesh(new THREE.TorusGeometry(5.15,.35,10,40,Math.PI),mat("#3c4650")); cl.rotation.y=Math.PI/2; cl.rotation.x=Math.PI; cl.position.set(x,cy,cz); mot.add(cl);
+    const sd=box(1.2,cy,11.2,mat("#3c4650")); sd.position.set(x,cy/2,cz); mot.add(sd);
+    const ft=box(3.2,.5,11.2,mat("#3c4650")); ft.position.set(x,.25,cz); mot.add(ft);});
+  lab("Motor DC",new THREE.Vector3(mc,cy+6.8,cz),"mech");
+  spinG=new THREE.Group(); spinG.position.set(0,cy,cz); SC.add(spinG);
+  const sh=cyl(.4,m0-ax,mat("#d0d4d8",{metalness:.9,roughness:.2}),16); sh.rotation.z=Math.PI/2; sh.position.set((ax+m0)/2,0,0); spinG.add(sh);
+  const hub=cyl(1.2,1.2,mat("#c9a227",{metalness:.7}),20); hub.rotation.z=Math.PI/2; hub.position.set(ax+.8,0,0); spinG.add(hub);
+  const R=7.9, r1=5.6, r2=7.1, sp=new THREE.Shape(); sp.absarc(0,0,R,0,Math.PI*2,false);
+  const pitch=Math.PI*2/NSLOT;
+  for(let i=0;i<NSLOT;i++){const a0=i*pitch, a1=a0+pitch*.5, h=new THREE.Path();
+    h.moveTo(r1*Math.cos(a0),r1*Math.sin(a0)); h.lineTo(r2*Math.cos(a0),r2*Math.sin(a0)); h.absarc(0,0,r2,a0,a1,false); h.lineTo(r1*Math.cos(a1),r1*Math.sin(a1)); h.absarc(0,0,r1,a1,a0,true); sp.holes.push(h);}
+  const ch=new THREE.Path(); ch.absarc(0,0,.42,0,Math.PI*2,true); sp.holes.push(ch);
+  const dg=new THREE.ExtrudeGeometry(sp,{depth:.35,bevelEnabled:false,curveSegments:48});
+  const disk=new THREE.Mesh(dg,mat("#2d3436",{roughness:.6})); disk.rotation.y=Math.PI/2; disk.position.set(ax-.175,0,0); spinG.add(disk);
+  const dwrap=mk("mech","Disk encoder "+NSLOT+" slot","Ø ±40 mm, tebal ≤ 1,5 mm","Bagian bawah disk masuk ke celah sensor, jalur slot sejajar titik cahaya"); dwrap.add(spinG); groups.push(dwrap); SC.add(dwrap);
+  spinG.traverse(o=>{if(o.isMesh){o.material=o.material.clone(); o.userData.baseOpacity=1;}});
+  lab("Disk encoder",new THREE.Vector3(ax-1,cy+9.4,cz),"mech");
+  // ===== L298N =====
+  const L=fin(mk("mech","Modul driver L298N","ENA ← J3 D23 · IN2 ← J3 C23 · IN1 ← pin 5V bekas jumper ENA · GND ← J3 B23 + GND PSU 12 V · OUT1/OUT2 → motor","Jumper cap ENA DILEPAS, jumper 12V-EN tetap"));
+  const ly=TY+1.6, lx=72, lz=40;
+  [[-7.6,-7.6],[7.6,-7.6],[-7.6,7.6],[7.6,7.6]].forEach(([dx,dz])=>{const s=cyl(.45,1.6,mat("#c9a227",{metalness:.7})); s.position.set(lx+dx,TY+.8,lz+dz); L.add(s);});
+  const lp=box(17,.63,17,mat("#b3262b")); lp.position.set(lx,ly+.3,lz); L.add(lp);
+  const hs=box(9,6.5,1.2,mat("#15181b",{metalness:.5})); hs.position.set(lx,ly+3.9,lz-3.2); L.add(hs);
+  for(let i=0;i<7;i++){const f=box(.35,6.5,2.6,mat("#15181b",{metalness:.5})); f.position.set(lx-4.2+i*1.4,ly+3.9,lz-4.6); L.add(f);}
+  const ic=box(7,3.2,1,mat("#222")); ic.position.set(lx,ly+2,lz-2.1); L.add(ic);
+  const term=(x,z,n,rot)=>{const t=box(rot?n*2:2.6,2.6,rot?2.6:n*2,mat("#1f6fd1")); t.position.set(x,ly+1.9,z); L.add(t);
+    for(let i=0;i<n;i++){const s=cyl(.55,.25,mat("#d0d4d8",{metalness:.9}),14); const off=(i-(n-1)/2)*2; s.position.set(rot?x+off:x,ly+3.3,rot?z:z+off); L.add(s);}};
+  term(lx-7.2,lz-1,2,false); term(lx+7.2,lz-1,2,false); term(lx-4,lz+7,3,true);
+  const HP=[["ENA·5V",lx+.5],["ENA",lx+1.3],["IN1",lx+2.3],["IN2",lx+3.1],["IN3",lx+3.9],["IN4",lx+4.7],["ENB",lx+5.7],["ENB·5V",lx+6.5]];
+  const hz=lz+7.4; const hb=box(7,.6,1,mat("#15181b")); hb.position.set(lx+3.5,ly+.9,hz); L.add(hb);
+  HP.forEach(([n,x])=>{const p=box(.25,2.4,.25,mat("#e5c35b",{metalness:.8})); p.position.set(x,ly+1.6,hz); L.add(p);});
+  const jc=box(1.9,.9,.9,mat("#15181b")); jc.position.set(lx+6.1,ly+2.6,hz); L.add(jc);
+  lab("L298N",new THREE.Vector3(lx,ly+8.6,lz-3.2),"mech");
+  const HPpos=n=>new THREE.Vector3(HP.find(h=>h[0]===n)[1],ly+2.8,hz);
+  const T12=new THREE.Vector3(lx-6,ly+3.4,lz+7), TGN=new THREE.Vector3(lx-4,ly+3.4,lz+7), O1=new THREE.Vector3(lx-7.2,ly+3.4,lz-2), O2=new THREE.Vector3(lx-7.2,ly+3.4,lz);
+  // ===== PSU 2 (5 V & 9 V) =====
+  const ps=fin(mk("mech","PSU 2: 5 V dan 9 V (papan PCB)","+5 V → J1 (Y1) · +9 V → J2 (L23) · GND → J1 (Y2)","GND PSU 2, PSU 1, dan kutub + baterai jadi satu lewat papan"));
+  const pb=box(13,8,13,mat("#4a5560")); pb.position.set(-19,TY+4,38); ps.add(pb);
+  const fp=box(.3,6.4,11,mat("#2b3138")); fp.position.set(-12.4,TY+4.4,38); ps.add(fp);
+  const PT=[["+5V","#d32f2f",34.5],["+9V","#1b5e20",38],["GND","#111",41.5]];
+  PT.forEach(([n,c,z])=>{const t=cyl(.6,1.2,mat(c),16); t.rotation.z=Math.PI/2; t.position.set(-11.7,TY+5,z); ps.add(t);});
+  lab("PSU 2 · 5 V & 9 V",new THREE.Vector3(-19,TY+10,38),"mech");
+  const PTp=n=>new THREE.Vector3(-11.1,TY+5,PT.find(p=>p[0]===n)[2]);
+  // ===== PSU 1 (12 V) =====
+  const p1=fin(mk("mech","PSU 1: 12 V (motor)","+12 V → terminal 12V L298N · GND → terminal GND L298N","GND L298N tersambung ke papan lewat J3 B23"));
+  const p1b=box(12,8,10,mat("#4a5560")); p1b.position.set(67,TY+4,66); p1.add(p1b);
+  const p1f=box(9,6.4,.3,mat("#2b3138")); p1f.position.set(67,TY+4.4,60.9); p1.add(p1f);
+  const P1T=[["+12V","#f08c00",64.5],["GND","#111",69.5]];
+  P1T.forEach(([n,c,x])=>{const t=cyl(.6,1.2,mat(c),16); t.rotation.x=Math.PI/2; t.position.set(x,TY+5,60.6); p1.add(t);});
+  lab("PSU 1 · 12 V",new THREE.Vector3(67,TY+9.6,66),"mech");
+  const P1p=n=>new THREE.Vector3(P1T.find(p=>p[0]===n)[2],TY+5,60);
+  // ===== baterai 9 V (−9 V) =====
+  const bt=fin(mk("mech","Baterai 9 V (sumber −9 V)","kutub − → J11 H6 dan J13 P18 · kutub + → GND B25 (J10)",""));
+  const bbx=box(10.4,6.9,19,mat("#2b2f33")); bbx.position.set(-20,TY+3.45,16); bt.add(bbx);
+  const bbl=box(10.5,6.95,7,mat("#e0b21b")); bbl.position.set(-20,TY+3.45,20); bt.add(bbl);
+  const tP=cyl(1,1,MET(),20); tP.rotation.x=Math.PI/2; tP.position.set(-21.9,TY+3.45,6.1); bt.add(tP);
+  const tN=cyl(1.25,1,MET(),6); tN.rotation.x=Math.PI/2; tN.position.set(-18.1,TY+3.45,6.1); bt.add(tN);
+  lab("Baterai 9 V (−9 V)",new THREE.Vector3(-20,TY+9.4,16),"mech");
+  // ===== VR15 setpoint =====
+  const vp=fin(mk("mech","VR15 potensio panel B100K (setpoint)","kaki 1 → M15 · wiper → M13 · kaki 3 → M14 (J12)",""));
+  const vb=cyl(3.1,1.8,mat("#7d8791",{metalness:.4}),32); vb.position.set(-9,TY+1.2,14); vp.add(vb);
+  const vs=cyl(.6,3.4,mat("#d0d4d8",{metalness:.9}),16); vs.position.set(-9,TY+3.8,14); vp.add(vs);
+  const vk=cyl(1.6,2,mat("#24292e"),28); vk.position.set(-9,TY+6.2,14); vp.add(vk);
+  const mk2=box(.25,.2,1.2,mat("#fff")); mk2.position.set(-9,TY+7.25,13.2); vp.add(mk2);
+  lab("VR15 (SP)",new THREE.Vector3(-9,TY+8.6,14),"mech");
+  // ===== kabel =====
+  const W=(pts,col,info,sec)=>{const cu=new THREE.CatmullRomCurve3(pts); const t=new THREE.Mesh(new THREE.TubeGeometry(cu,80,.17,8,false),mat(col));
+    const g=mk(sec||"mech",info); g.add(t); fin(g);};
+  const up=(v,h)=>v.clone().setY(h);
+  const hp=(half,x,y,h)=>{const p=P3(half,x,y); p.y=h==null?2.2:h; return p;};
+  const route=(a,b,h)=>[a,up(a,h),new THREE.Vector3((a.x+b.x)/2,h+1,(a.z+b.z)/2),up(b,h),b];
+  // sensor → J6 (top half (10..13,27))
+  [["K","#222",10,-.45],["A","#d32f2f",11,-.15],["C","#2fb344",12,.15],["E","#555",13,.45]].forEach(([n,c,x,dz])=>{const [px,pz]=SP[n]; const a=new THREE.Vector3(px,-.7,pz), b=hp("top",x,27);
+    W([a,new THREE.Vector3(px,-1.6,pz+.3),new THREE.Vector3(SX-2.6,-1.4,pz+dz*2),new THREE.Vector3(SX-3.4,1.5,b.z+dz),new THREE.Vector3(b.x+1.2,3.2,b.z+dz),up(b,2.6),b],c,`Kabel sensor ${n} (bawah papan sensor) → J6 ${LET[24-x]}27`);});
+  // J3 → L298N
+  const j3=n=>hp("bot",n,23);
+  W(route(j3(21),HPpos("ENA"),4.5),"#e8871e","J3-ENA (D23) → L298N ENA");
+  W(route(j3(22),HPpos("IN2"),5.2),"#f1c40f","J3-IN2 (C23) → L298N IN2");
+  W(route(j3(23),TGN,5.9),"#222","J3-GND (B23) → L298N GND");
+  W([HPpos("ENA·5V"),up(HPpos("ENA·5V"),5),up(HPpos("IN1"),5),HPpos("IN1")],"#d32f2f","Pin 5V bekas jumper ENA → IN1 (female-female)");
+  // OUT → motor
+  W([O1,up(O1,ly+5),new THREE.Vector3(TX+6,cy+3,14),new THREE.Vector3(TX+1,cy+2.2,cz+1),new THREE.Vector3(TX,cy+2.2,cz)],"#d32f2f","OUT1 → motor (+)");
+  W([O2,up(O2,ly+4.2),new THREE.Vector3(TX+5,cy-1,14),new THREE.Vector3(TX+1,cy-2.2,cz+1),new THREE.Vector3(TX,cy-2.2,cz)],"#222","OUT2 → motor (−)");
+  // PSU
+  const pw=(name,col,b,h,info)=>{const a=PTp(name); W([a,new THREE.Vector3(a.x+3,a.y,a.z),new THREE.Vector3(a.x+6,h,(a.z+b.z)/2),up(b,h),b],col,info);};
+  pw("+5V","#d32f2f",hp("bot",0,1),5,"PSU 2 +5 V → J1 (Y1)"); pw("GND","#111",hp("bot",0,2),5.6,"PSU 2 GND → J1 GND (Y2)");
+  pw("+9V","#1b5e20",hp("bot",13,23),7,"PSU 2 +9 V → J2 (L23)"); 
+  
+  const a12=P1p("+12V"), ag=P1p("GND");
+  W([a12,new THREE.Vector3(a12.x,a12.y+.5,a12.z-2.5),new THREE.Vector3(T12.x,3.5,T12.z+4),up(T12,3),T12],"#f08c00","PSU 1 +12 V → L298N 12V");
+  W([ag,new THREE.Vector3(ag.x,ag.y+.3,ag.z-2.5),new THREE.Vector3(TGN.x+.5,2.8,TGN.z+4),up(TGN,2.4),TGN],"#111","PSU 1 GND → L298N GND");
+  const bP=new THREE.Vector3(-21.9,TY+3.45,5.4), bN=new THREE.Vector3(-18.1,TY+3.45,5.4);
+  {const b=hp("top",23,25); W([bP,new THREE.Vector3(-21.9,TY+3.5,2),new THREE.Vector3(-14,3.5,-3),new THREE.Vector3(b.x,4.5,-3),up(b,4),b],"#d32f2f","Baterai 9 V kutub + (merah) → B25, pin GND J10");}
+  {const sp=new THREE.Vector3(-14,3,4); W([bN,new THREE.Vector3(-18.1,TY+3.5,3),sp],"#111","Baterai 9 V kutub − (hitam) → percabangan");
+   [[17,6,"J11 H6 (IC5)"],[9,18,"J13 P18 (IC6)"]].forEach(([x,y,t],i)=>{const b=hp("top",x,y); W([sp,new THREE.Vector3(-8,4.5+i*.6,b.z),up(b,4.5+i*.6),b],"#111",`Baterai −9 V → ${t}`);});}
+  // PV J10 → J9 dan VR15 → J12
+  W(route(hp("top",23,24),hp("top",13,13),4),"#12a58f","Kabel PV: J10 (B24) → J9 (L13)","pid");
+  [["1","#9e9d24",15,0.6],["W","#2fb344",13,0],["3","#111",14,-.6]].forEach(([n,c,y,dz])=>{const a=new THREE.Vector3(-9+1.6,TY+1.2,14+dz); const b=hp("top",12,y);
+    W([a,new THREE.Vector3(-5,1.5,14+dz),new THREE.Vector3(4,4,b.z),up(b,4),b],c,`VR15 kaki ${n} → J12 ${LET[12]}${y}`);});
+}
+function spinStep(){ if(!spinG||!spinOn) return; spinG.rotation.x+=0.045;
+  const a=((-spinG.rotation.x)%(Math.PI*2)+Math.PI*2)%(Math.PI*2); const p=Math.PI*2/NSLOT; // posisi beam di sudut +Z
+  const rel=((Math.PI/2 - spinG.rotation.x) % p + p) % p; beam.material.opacity=rel<p*.5?0.95:0.12;}
+
+function init(){
+  const host=document.getElementById("v3d");
+  R3=new THREE.WebGLRenderer({antialias:true,alpha:true}); R3.setPixelRatio(Math.min(2,devicePixelRatio)); host.appendChild(R3.domElement);
+  SC=new THREE.Scene(); CAM=new THREE.PerspectiveCamera(40,1,.1,800);
+  SC.add(new THREE.HemisphereLight(0xffffff,0x6b5a40,.85)); const dl=new THREE.DirectionalLight(0xffffff,.75); dl.position.set(30,60,20); SC.add(dl);
+  const dl2=new THREE.DirectionalLight(0xffffff,.35); dl2.position.set(-20,-40,-10); SC.add(dl2);
+  const top=boardTex(false), bot=boardTex(true); const W=top.X1-top.X0, H=top.Z1-top.Z0, cx=(top.X0+top.X1)/2, cz=(top.Z0+top.Z1)/2;
+  const edge=box(W,BT,H,mat("#b8874f")); edge.position.set(cx,-BT/2,cz); SC.add(edge);
+  const pt=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshStandardMaterial({map:top.t,roughness:.8})); pt.rotation.x=-Math.PI/2; pt.position.set(cx,.002,cz); SC.add(pt);
+  const pb=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshStandardMaterial({map:bot.t,roughness:.8})); pb.rotation.x=Math.PI/2; pb.position.set(cx,-BT-.002,cz); SC.add(pb);
+  // solder runs (bottom)
+  runsG=new THREE.Group(); SC.add(runsG);
+  [["top",DATA.top],["bot",DATA.bot]].forEach(([half,D0])=>D0.runs.forEach(r=>{
+    const a=P3(half,...r.a), b=P3(half,...r.b), L=a.distanceTo(b);
+    const m=box(.42,.14,L+.42,mat(NETCOL[r.net]||"#9aa0a6",{metalness:.35,roughness:.4}));
+    m.position.set((a.x+b.x)/2,-BT-.07,(a.z+b.z)/2); m.rotation.y=Math.abs(a.x-b.x)>Math.abs(a.z-b.z)?Math.PI/2:0;
+    m.userData.sec=half==="bot"?"open":(r.stage&&r.stage[0]==="p"?"pid":"sens"); m.userData.info=`Jalur solder ${r.net}`; runsG.add(m);}));
+  // components
+  const pidSet=new Set(DATA.top.comps.filter(c=>c.stage&&c.stage[0]==="p").map(c=>c.id));
+  DATA.bot.comps.forEach(c=>{const g=buildComp(c,"bot","open"); g.userData.sec="open"; groups.push(g); SC.add(g);});
+  DATA.top.comps.forEach(c=>{const sec=pidSet.has(c.id)?"pid":"sens"; const g=buildComp(c,"top",sec); groups.push(g); SC.add(g);});
+  labels.forEach(l=>SC.add(l));
+  // jumpers
+  const wire=(a,b,col,hgt,rad,sec,info)=>{const m=new THREE.Vector3().addVectors(a,b).multiplyScalar(.5).setY(hgt);
+    const cu=new THREE.QuadraticBezierCurve3(a.clone().setY(.05),m,b.clone().setY(.05));
+    const t=new THREE.Mesh(new THREE.TubeGeometry(cu,40,rad,10,false),mat(col)); const g=new THREE.Group(); g.add(t);
+    g.userData={info,pins:"",sec,note:""}; g.traverse(o=>{if(o.isMesh)o.userData.baseOpacity=1;}); groups.push(g); return g;};
+  DATA.bot.jumpers.forEach(j=>SC.add(wire(P3("bot",...j.a),P3("bot",...j.b),j.color,1.6,.13,"open",`Jumper ${j.id} (${j.net})`)));
+  DATA.top.jumpers.forEach(j=>SC.add(wire(P3("top",...j.a),P3("top",...j.b),j.color||"#444",1.8,.13,j.stage&&j.stage[0]==="p"?"pid":"sens",`Jumper ${j.id} (${j.net})`)));
+  cablesG=new THREE.Group(); SC.add(cablesG);
+  CABLES.forEach(k=>{const a=P3(k.from[0]==="atas"?"top":"bot",k.from[1],k.from[2]), b=P3(k.to[0]==="atas"?"top":"bot",k.to[1],k.to[2]);
+    const w=wire(a.clone().setY(2.2),b.clone().setY(2.2),k.color,6,.18,"all",`Kabel ${k.id}: ${k.name}`); cablesG.add(w);});
+  buildExternal();
+  CTL=new THREE.OrbitControls(CAM,R3.domElement); CTL.enableDamping=true; CTL.target.set(cx,0,cz);
+  window.__m3d={cx,cz};
+  setView("iso");
+  new ResizeObserver(resize).observe(host); resize();
+  // picking
+  const ray=new THREE.Raycaster(), mv=new THREE.Vector2(); let down=null;
+  R3.domElement.addEventListener("pointerdown",e=>{down=[e.clientX,e.clientY];});
+  R3.domElement.addEventListener("pointerup",e=>{ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5) return;
+    const r=R3.domElement.getBoundingClientRect(); mv.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1); ray.setFromCamera(mv,CAM);
+    const hits=ray.intersectObjects([...groups,runsG],true); const pk=document.getElementById("pick3d");
+    for(const h of hits){ let o=h.object; while(o&&!(o.userData&&o.userData.info)) o=o.parent; if(o){
+      pk.innerHTML=`<b>${o.userData.info}</b>${o.userData.pins?` · <span class="mono">${o.userData.pins}</span>`:""}${o.userData.note?` · <span class="muted">${o.userData.note}</span>`:""}${o.userData.sec&&SEC_NAME[o.userData.sec]?` · <span class="muted">${SEC_NAME[o.userData.sec]}</span>`:""}`; return;}}
+    pk.textContent="–";});
+  inited=true;
+}
+function resize(){const h=document.getElementById("v3d"); const w=h.clientWidth, ht=h.clientHeight; R3.setSize(w,ht); CAM.aspect=w/ht; CAM.updateProjectionMatrix();}
+function setView(v){ if(!window.__m3d) return; const {cx,cz}=window.__m3d; CAM.up.set(0,1,0);
+  if(v==="iso"){CTL.target.set(34,-2,32); CAM.position.set(90,70,118); CTL.update(); mark(v); return;} else if(v==="board"){CAM.position.set(cx+24,36,cz+44);} else if(v==="sens"){CTL.target.set(33,3,1); CAM.position.set(20,15,-15); CTL.update(); mark(v); return;} else if(v==="drv"){CTL.target.set(68,-1,54); CAM.position.set(100,28,86); CTL.update(); mark(v); return;} else if(v==="top"){CAM.position.set(cx,78,cz+.01);} else if(v==="bot"){CAM.position.set(cx,-78,cz-.01);}
+  else if(v==="side"){CAM.position.set(cx+70,14,cz);} CTL.target.set(cx,0,cz); CTL.update(); mark(v);}
+function mark(v){document.querySelectorAll("#v3dCtl [data-v]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));}
+function focus(sec){ curFocus=sec; if(!inited) return;
+  const apply=(o,on)=>o.traverse(m=>{if(m.isMesh||m.isSprite){m.material.transparent=!on||m.isSprite; m.material.opacity=on?1:.12; m.material.depthWrite=on;}});
+  groups.forEach(g=>apply(g,sec==="all"||g.userData.sec===sec||g.userData.sec==="all"));
+  runsG.children.forEach(m=>apply(m,sec==="all"||m.userData.sec===sec));
+  labels.forEach(l=>{l.visible=document.getElementById("t3Lb").checked&&(sec==="all"||l.userData.sec===sec);});
+  document.querySelectorAll("#v3dCtl [data-f]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===sec));
+  if(sec==="all"){ setView("iso"); return; }
+  const bb=new THREE.Box3(); groups.forEach(g=>{if(g.userData.sec===sec) bb.expandByObject(g);});
+  const c=bb.getCenter(new THREE.Vector3()); c.y=0; const sz=bb.getSize(new THREE.Vector3()); const k=Math.max(sz.x,sz.z)/22;
+  CTL.target.copy(c); CAM.position.set(c.x+16*k,24*k,c.z+26*k); CTL.update();}
+function loop(){ if(!running) return; spinStep(); CTL.update(); R3.render(SC,CAM); requestAnimationFrame(loop);}
+window.open3D=async function(){
+  const st=document.getElementById("m3dStatus");
+  if(!inited){ try{ st.textContent="Memuat three.js…";
+      if(!window.THREE) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js");
+      if(!THREE.OrbitControls) await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+    }catch(e){ st.textContent="Model 3D butuh internet untuk memuat three.js (sekali saja). Buka lagi saat online."; return; }
+    try{ init(); st.textContent=""; }catch(e){ console.error(e); st.textContent="Gagal membangun model 3D: "+e.message; return; } }
+  running=true; resize(); loop();};
+window.close3D=function(){running=false;};
+document.querySelectorAll("#v3dCtl [data-v]").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.v)));
+document.querySelectorAll("#v3dCtl [data-f]").forEach(b=>b.addEventListener("click",()=>focus(b.dataset.f)));
+document.getElementById("t3Lb").addEventListener("change",()=>focus(curFocus));
+document.getElementById("t3Rn").addEventListener("change",e=>{if(runsG) runsG.visible=e.target.checked;});
+document.getElementById("t3Sp").addEventListener("change",e=>{spinOn=e.target.checked;});
+document.getElementById("t3Kb").addEventListener("change",e=>{if(cablesG) cablesG.visible=e.target.checked;});
+})();
+if(!document.getElementById("pg-m3d").hidden) window.open3D();
+</script>
